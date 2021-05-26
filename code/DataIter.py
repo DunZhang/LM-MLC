@@ -13,16 +13,17 @@ class BERTDataIter():
     """ 对于bert的数据加载器 只获得area或type """
 
     def __init__(self, data_path: str, tokenizer: BertTokenizer, batch_size: int = 64, shuffle: bool = True,
-                 max_len: int = 128, use_label_mask=False, task="train", num_labels=10, mask_order_train="random",
+                 max_len: int = 128, use_label_mask=False, task="train", num_labels=10, mask_order="random",
                  num_pattern_begin=1, num_pattern_end=1,
                  wrong_label_ratio=0.08, token_type_strategy=None, mlm_ratio=0.15,
-                 pattern_pos="end"
+                 pattern_pos="end", pred_strategy="normal",
                  ):
         """
         labe2id不为空代表使用完形填空模型
         """
         super().__init__()
-        self.mask_order_train = mask_order_train
+        self.mask_order = mask_order
+        self.pred_strategy = pred_strategy
         self.num_pattern_begin = num_pattern_begin
         self.num_pattern_end = num_pattern_end
         self.wrong_label_ratio = wrong_label_ratio
@@ -46,8 +47,6 @@ class BERTDataIter():
         self.data_ids = self._read_data(data_path=self.data_path)
         if self.shuffle:
             random.shuffle(self.data_ids)
-        logger.info("{},  example data:{}".format(self.task, self.data_ids[0]))
-        logger.info("{},  number data:{}".format(self.task, len(self.data_ids)))
         self.data_iter = iter(self.data_ids)
 
     def get_steps(self):
@@ -87,14 +86,14 @@ class BERTDataIter():
         if len(batch_data) < 1:
             return None
         if self.use_label_mask:
-            if self.task in ["train", "eval"]:
+            if self.task == "train":
                 num_mask = random.randint(1, self.num_labels)
-                if self.mask_order_train == "random":
+                if self.mask_order == "random":
                     masked_labels_list = [random.sample(self.all_labels, num_mask) for _ in range(len(batch_data))]
                     pred_labels_list = deepcopy(masked_labels_list)
                 else:
-                    masked_labels_list = [self.mask_order_train[-1 * num_mask:] for _ in range(len(batch_data))]
-                    pred_labels_list = [self.mask_order_train[-1 * num_mask:1 - num_mask] for _ in
+                    masked_labels_list = [self.mask_order[:num_mask] for _ in range(len(batch_data))]
+                    pred_labels_list = [self.mask_order[num_mask - 1:num_mask] for _ in
                                         range(len(batch_data))]
 
                 return get_labelbert_input_single_sen(batch_data, self.max_len, self.tokenizer,
@@ -163,15 +162,16 @@ def get_labelbert_input_single_sen(data, max_len, tokenizer, masked_labels_list=
     :return:
     """
 
-    num_labels = len(data[0][0])
+    num_labels = len(data[0][1])
     num_add_tokens_per_label = 1 + num_pattern_begin + num_pattern_end
     input_ids, attention_mask, token_type_ids, all_labels, all_label_indexs, mlm_labels = [], [], [], [], [], []
-    all_token_ids = set(
-        list(range(len(tokenizer.get_vocab()) - num_labels * 3 - (num_pattern_begin + num_pattern_end) * num_labels)))
+    all_token_ids = list(
+        range(len(tokenizer.get_vocab()) - num_labels * 3 - (num_pattern_begin + num_pattern_end) * num_labels))
     # 确定max_len
     total_pattern_len = num_add_tokens_per_label * num_labels
     max_len = min([max([2 + len(i[0]) + total_pattern_len for i in data]), max_len])
     for (ids, labels), masked_labels, pred_labels in zip(data, masked_labels_list, pred_labels_list):  # 对于每一条数据
+        # print("num_labels", num_labels)
         res = tokenizer.prepare_for_model(ids, pair_ids=None, max_length=max_len - total_pattern_len,
                                           add_special_tokens=True, truncation=True)
         text_input_ids = res["input_ids"]
@@ -188,6 +188,7 @@ def get_labelbert_input_single_sen(data, max_len, tokenizer, masked_labels_list=
                     ipt_label_indexs.append(len(label_input_ids) - 1)  # 该位置的字是UNLABEL，用它来预测
                     ipt_labels_values.append(labels[label_idx])
             else:
+                # print(label_idx)
                 value = "[LABEL-{}-YES]".format(label_idx) if labels[label_idx] == 1 else "[LABEL-{}-NO]".format(
                     label_idx)
                 if random.random() < wrong_label_ratio:  # 制造一些噪音 增强泛化性
@@ -203,6 +204,7 @@ def get_labelbert_input_single_sen(data, max_len, tokenizer, masked_labels_list=
             else:
                 raise
         # 合并 text 、mlm和label信息
+        label_input_ids = tokenizer.convert_tokens_to_ids(label_input_ids)
         if pattern_pos == "end":
             ipt_label_indexs = [i + len(text_input_ids) for i in ipt_label_indexs]
             text_input_ids.extend(label_input_ids)
@@ -215,7 +217,7 @@ def get_labelbert_input_single_sen(data, max_len, tokenizer, masked_labels_list=
             mlm_mask_label.extend([-100] * (max_len - len(mlm_mask_label)))
 
         t_attention_mask = [1] * len(text_input_ids) + [0] * (max_len - len(text_input_ids))  # 注意力掩码
-        text_token_type_ids += [0] * (max_len - len(text_input_ids))  # 补全token_type
+        text_token_type_ids += [0] * (max_len - len(text_token_type_ids))  # 补全token_type
         text_input_ids += [tokenizer.pad_token_id] * (max_len - len(text_input_ids))  # 补全input_ids
         input_ids.append(text_input_ids)
         attention_mask.append(t_attention_mask)

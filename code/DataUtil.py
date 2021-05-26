@@ -6,6 +6,7 @@ import logging
 import random
 from os.path import join, isfile, isdir
 from os import listdir
+from collections import defaultdict
 
 logger = logging.getLogger("OPPOSTS")
 
@@ -117,9 +118,24 @@ class DataUtil():
                 mask_label.append(-100)
         return masked_ids, mask_label
 
+    @staticmethod
+    def get_label_list(data_path: str):
+        with open(data_path, "r", encoding="utf8") as fr:
+            labels = [line.split("\t")[1].strip() for line in fr]
+        label2count = defaultdict(int)
+        for i in labels:
+            for idx, j in enumerate(i):
+                if j == "1":
+                    label2count[idx] += 1
+        res = [(k, v) for k, v in label2count.items()]
+        res.sort(key=lambda x: x[1])
+        print(res)
+        print([i[0] for i in res])
+
 
 if __name__ == "__main__":
-    DataUtil.build_vocab()
+    DataUtil.get_label_list("../data/format_data/aapd_train.txt")
+    # DataUtil.build_vocab()
     # data = DataUtil.read_data("../user_data/data/hold_out_20210422/dev.txt")
     # c1, c2, c3 = 0, 0, 0
     # for _, _, l1, l2 in data:

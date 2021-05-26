@@ -23,7 +23,8 @@ class TrainConfig():
         self.num_mlm_steps = None
         self.mlm_proba = None
         self.token_type_strategy = None
-        self.mask_order_train = None
+        self.mask_order = None
+        self.pred_strategy = None
         self.wrong_label_ratio = None
         self.train_data_path = None
         self.dev_data_path = None

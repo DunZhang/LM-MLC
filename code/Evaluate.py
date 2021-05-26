@@ -6,7 +6,7 @@ from sklearn.metrics import auc, roc_curve, classification_report, accuracy_scor
 
 import torch
 import numpy as np
-from DataIter import DataIter, BERTDataIter, get_labelbert_input_single_sen
+from DataIter import BERTDataIter, get_labelbert_input_single_sen
 import os
 from SigmoidModel import SigmoidModel
 from LableMaskModel import LableMaskModel
@@ -21,7 +21,7 @@ import logging
 logging.basicConfig(level=logging.INFO)
 
 
-def _pred_logits_fc(model: torch.nn.Module, data_iter: DataIter, device: torch.device, save_path):
+def _pred_logits_fc(model: torch.nn.Module, data_iter, device: torch.device, save_path):
     """
     基于非标签掩码的模型预测
     """
@@ -32,7 +32,7 @@ def _pred_logits_fc(model: torch.nn.Module, data_iter: DataIter, device: torch.d
         for ipt in data_iter:
             ipt = {k: v.to(device) for k, v in ipt.items()}
             batch_label = ipt.pop("labels")
-            _, batch_logits = model(**ipt)
+            batch_logits = model(**ipt)
             batch_logits = batch_logits.to("cpu").data.numpy()
             ###
             batch_label = batch_label.to("cpu").data.numpy()
@@ -46,37 +46,71 @@ def _pred_logits_fc(model: torch.nn.Module, data_iter: DataIter, device: torch.d
     return logits, y_true
 
 
-def _pred_logits_labelmask_part(model: torch.nn.Module, data_iter: DataIter, device: torch.device, save_path):
+def _pred_logits_labelmask_part(model: torch.nn.Module, data_iter, device: torch.device, save_path):
     """
     专门为label mask model准备的评测, 部分掩码的，一个一个预测非常慢
     """
     model.eval()
+    tokenizer = model.tokenizer
+    max_len = data_iter.max_len
+    num_labels = data_iter.num_labels
     y_true, logits = [], []
     data_iter.reset()
+    if data_iter.mask_order == "random":
+        mask_order = list(range(num_labels))  # 这个顺序很重要
+    else:
+        mask_order = data_iter.mask_order
     with torch.no_grad():
-        for batch_data, max_len, tokenizer, label2id in data_iter:  # 对于每一批数据
-            batch_logits = [None] * 29
+        for step, batch_data in enumerate(data_iter):  # 对于每一批数据
+            print("eval-step:{}/{}".format(step, data_iter.get_steps()))
+            batch_logits = np.empty((len(batch_data), num_labels))  # 存放这一批数据集的每个loabel的logits
             # 预测17次获取最终结果
-            masked_labes = list(range(29))  # 首次肯定是全部掩掉的 这个顺序很重要
-            for i in range(29):  # 预测29次
-                ipt = get_labelbert_input_single_sen(batch_data, max_len, tokenizer, label2id, masked_labes, True)
-                if i == 0:
-                    y_true.append(ipt["labels"].to("cpu").data.numpy())
+            for i in range(num_labels, 0, -1):  # 多少个标签就预测多少次
+                if data_iter.pred_strategy == "normal":
+                    masked_labels_list = [mask_order[: i] for _ in range(len(batch_data))]
+                    pred_labels_list = [mask_order[i - 1:i] for _ in range(len(batch_data))]
+                elif data_iter.pred_strategy == "top-p" and i == num_labels:  # 初次使用全量
+                    masked_labels_list = [mask_order[: i] for _ in range(len(batch_data))]
+                    pred_labels_list = [mask_order[: i] for _ in range(len(batch_data))]
+                ipt = get_labelbert_input_single_sen(batch_data, max_len, tokenizer,
+                                                     masked_labels_list=masked_labels_list,
+                                                     pred_labels_list=pred_labels_list,
+                                                     num_pattern_begin=data_iter.num_pattern_begin,
+                                                     num_pattern_end=data_iter.num_pattern_end,
+                                                     wrong_label_ratio=-1,
+                                                     token_type_strategy=data_iter.token_type_strategy,
+                                                     mlm_ratio=-1,
+                                                     pattern_pos=data_iter.pattern_pos)
+
+                if i == num_labels:  # 首次预测存储真实标签
+                    y_true.append(np.array([item[1] for item in batch_data], dtype=np.int))
                 ipt = {k: v.to(device) for k, v in ipt.items()}
                 # batch_label = ipt.pop("labels")
-                _, t_batch_logits = model(**ipt)  # b*num_labels(1-17)
-                t_batch_logits = t_batch_logits.cpu().data.numpy()
-                t_batch_proba = expit(t_batch_logits)
-                # TODO 可以考虑做成函数
-                selected_label = random.choice(masked_labes)  # 使用随机选的策略
-                ################################################################################
-                label_idx = masked_labes.index(selected_label)  #
-                for idx, bd in enumerate(batch_data):
-                    bd[1][selected_label] = 0 if t_batch_proba[idx, label_idx] < 0.5 else 1
-                batch_logits[selected_label] = t_batch_logits[:, label_idx:label_idx + 1]
-                masked_labes.remove(selected_label)
-            batch_logits = np.hstack(batch_logits)
-            ###
+                t_batch_logits = model(**ipt).cpu().data.numpy()  # b*num_labels
+                t_batch_proba = expit(t_batch_logits)  # batch_size * len(pred_labels_list)
+                #####################################################################
+                if data_iter.pred_strategy == "normal":
+                    selected_label_list = [mask_order[i - 1] for _ in range(t_batch_proba.shape[0])]
+                elif data_iter.pred_strategy == "top-p":  # 选择置信度最高的
+                    # 获取置信度
+                    t_batch_confidence = np.copy(t_batch_proba)
+                    for x in range(t_batch_confidence.shape[0]):
+                        for y in range(t_batch_confidence.shape[1]):
+                            if t_batch_confidence[x, y] < 0.5:
+                                t_batch_confidence[x, y] = 1 - t_batch_confidence[x, y]
+                    # 获取目标mask
+                    max_score_ids = np.argmin(t_batch_confidence, axis=1).tolist()
+                    selected_label_list = [pred_labels_list[num_record][int(value)] for num_record, value in
+                                           enumerate(max_score_ids)]
+
+                for idx, data_label in enumerate(batch_data):
+                    selected_label = selected_label_list[idx]
+                    batch_logits[idx, selected_label] = t_batch_logits[idx, pred_labels_list[idx].index(selected_label)]
+                    data_label[1][selected_label] = 0 if t_batch_proba[idx, 0] < 0.5 else 1
+                    if data_iter.pred_strategy == "top-p":
+                        # 更新 pred_labels_list 和 masked_labels_list
+                        pred_labels_list[idx].remove(selected_label)
+                        masked_labels_list[idx].remove(selected_label)
             logits.append(batch_logits)
     y_true = np.vstack(y_true)
     logits = np.vstack(logits)
@@ -86,13 +120,13 @@ def _pred_logits_labelmask_part(model: torch.nn.Module, data_iter: DataIter, dev
     return logits, y_true
 
 
-def pred_logits(model: torch.nn.Module, data_iter: DataIter, device: torch.device, save_path):
+def pred_logits(model: torch.nn.Module, data_iter, device: torch.device, save_path):
     """ return (logits,label) """
 
     if isinstance(model, SigmoidModel):
         return _pred_logits_fc(model, data_iter, device, save_path)
     elif isinstance(model, LableMaskModel):
-        return _pred_logits_fc(model, data_iter, device, save_path)
+        return _pred_logits_labelmask_part(model, data_iter, device, save_path)
 
 
 def logits2res_file(logits, save_path, report_id_list=None):
@@ -125,14 +159,13 @@ def logits2res_file(logits, save_path, report_id_list=None):
         fw.writelines(write_data)
 
 
-def evaluate(model: torch.nn.Module, data_iter: DataIter, device: torch.device):
+def evaluate(model: torch.nn.Module, data_iter, device: torch.device):
     """
     基于非标签掩码的模型评估
     """
     logits, y_true = pred_logits(model, data_iter, device, None)
     proba = np.array(expit(logits), dtype=np.float64)
-    proba = np.clip(proba, 1e-9, 1 - 1e-9)
-    # proba = np.clip(proba, 0.2, 0.8)
+    proba = np.clip(proba, 1e-5, 1 - 1e-5)
     # 获取预测值
     y_pred = np.array(proba)
     y_pred[y_pred > 0.5] = 1
@@ -142,9 +175,8 @@ def evaluate(model: torch.nn.Module, data_iter: DataIter, device: torch.device):
     # 开始计算指标
     acc = accuracy_score(y_true, y_pred)  # 严格准确率
     f1 = f1_score(y_true, y_pred, average="micro")  # 着重与每一个类别的F1值
-    mlogscore = float(1 + np.mean(y_true * np.log(proba) + (1 - y_true) * np.log(1 - proba)))
     jacc = jaccard_score(y_true, y_pred, average="micro")  # jacc score
-    return acc, f1, mlogscore, jacc
+    return acc, f1, jacc
 
 
 if __name__ == "__main__":

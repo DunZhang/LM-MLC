@@ -23,19 +23,19 @@ logging.basicConfig(level=logging.INFO)
 if __name__ == "__main__":
     conf = TrainConfig()
     # 模型结构
-    conf.pretrained_bert_dir = "../user_data/trained_models/{}/latest_model".format("")
-    conf.max_len = 128
+    conf.pretrained_bert_dir = "../data/public_models/bert_base"
+    conf.max_len = 400
     # 训练相关
     conf.seed = 2021
     conf.device = "0"
-    conf.lr = 1e-5
+    conf.lr = 5e-5
     conf.batch_size = 32
-    conf.num_epochs = 20
+    conf.num_epochs = 25
     conf.warmup_proportion = 0.1
-    conf.num_labels = 12
+    conf.num_labels = 54
     # 输出信息
     conf.log_step = 10
-    conf.save_step = 400  # do a evaluate and save best model
+    conf.save_step = 2000  # do a evaluate and save best model
     conf.use_label_mask = True
     conf.init_from_pretrained = True
     # 前后token数量
@@ -45,26 +45,27 @@ if __name__ == "__main__":
     conf.pattern_pos = "begin"  # begin or end
 
     # 是否使用mlm任务联合训练
-    conf.num_mlm_steps_or_epochs = "epoch-5"  # epoch-xx 或 step-xx
-    conf.mlm_proba = 0.15  # 掩码概率
+    conf.num_mlm_steps_or_epochs = "epoch-0"  # epoch-xx 或 step-xx
+    conf.mlm_proba = -0.15  # 掩码概率
 
     # token_type 策略
-    conf.token_type_strategy = "same"  # None:无策略，same:标签使用一种token_type, diff:每个标签使用不同的token_type
+    conf.token_type_strategy = "diff"  # None:无策略，same:标签使用一种token_type, diff:每个标签使用不同的token_type
 
     # 训练时标签mask的顺序
-    conf.mask_order_train = "random"  # random:每次都是随机，List[int] 固定的mask顺序
-
+    conf.mask_order = "random"
+    # 预测时标签的顺序
+    conf.pred_strategy = "top-p"  # normal or top-p
     # seq2seq: 预测时只知道那些标签是1，不只到哪些标签是0，哪些标签待预测，训练速度慢
     # unilm: 预测时知道哪些标签是1，哪些标签是0，不知道哪些标签待预测，可以并行训练
     # LableMask：预测时知道哪些标签是1，哪些标签是0，哪些标签待预测，可以并行训练
     # 强制标签错误率
-    conf.wrong_label_ratio = 0.1
+    conf.wrong_label_ratio = 0.01
 
     # 相关路径
-    conf.train_data_path = "../user_data/data/{}/{}_fold/train.txt"
-    conf.dev_data_path = "../user_data/data/{}/{}_fold/dev.txt"
+    conf.train_data_path = "../data/format_data/aapd_train.txt"
+    conf.dev_data_path = "../data/format_data/aapd_test.txt"
     conf.data_sep = "\t"  # text与label的sep
     # 输出路径
-    conf.out_dir = "../user_data/trained_models/final-{}-{}-{}-{}-fold"
+    conf.out_dir = "../output/trained_models/test_labelmask_aapd_vv7"
     conf.desc = ""
     train_model(conf)

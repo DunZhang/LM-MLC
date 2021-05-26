@@ -6,7 +6,7 @@ from TrainConfig import TrainConfig
 from DataIter import BERTDataIter
 from DataUtil import DataUtil
 from Evaluate import evaluate
-from transformers import BertTokenizer, AdamW, get_linear_schedule_with_warmup
+from transformers import AdamW, get_linear_schedule_with_warmup
 from SigmoidModel import SigmoidModel
 from LableMaskModel import LableMaskModel
 from os.path import join
@@ -40,8 +40,8 @@ def train_model(conf: TrainConfig):
     # directory
     out_dir = conf.out_dir
     os.makedirs(out_dir, exist_ok=True)
-    mlog_best_model_dir = join(out_dir, "mlog_best_model")
-    os.makedirs(mlog_best_model_dir)
+    avg_best_model_dir = join(out_dir, "avg_best_model")
+    os.makedirs(avg_best_model_dir, exist_ok=True)
     # log file
     log_file_path = os.path.join(out_dir, "logs.txt")
     logger = DataUtil.init_logger(log_name="dianfei", log_file=log_file_path)
@@ -60,11 +60,23 @@ def train_model(conf: TrainConfig):
     # train data
     train_data_iter = BERTDataIter(data_path=conf.train_data_path, tokenizer=model.tokenizer,
                                    batch_size=conf.batch_size, shuffle=True, max_len=conf.max_len,
-                                   label2id=model.get_label2id(), task="train")
+                                   use_label_mask=conf.use_label_mask, task="train", num_labels=conf.num_labels,
+                                   mask_order=conf.mask_order,
+                                   num_pattern_begin=conf.num_pattern_begin, num_pattern_end=conf.num_pattern_end,
+                                   wrong_label_ratio=conf.wrong_label_ratio,
+                                   token_type_strategy=conf.token_type_strategy, mlm_ratio=conf.mlm_proba,
+                                   pattern_pos=conf.pattern_pos, pred_strategy=conf.pred_strategy,
+                                   )
     # dev data
     dev_data_iter = BERTDataIter(data_path=conf.dev_data_path, tokenizer=model.tokenizer,
                                  batch_size=conf.batch_size, shuffle=False, max_len=conf.max_len,
-                                 label2id=model.get_label2id(), task="dev")
+                                 use_label_mask=conf.use_label_mask, task="dev", num_labels=conf.num_labels,
+                                 mask_order=conf.mask_order,
+                                 num_pattern_begin=conf.num_pattern_begin, num_pattern_end=conf.num_pattern_end,
+                                 wrong_label_ratio=conf.wrong_label_ratio,
+                                 token_type_strategy=conf.token_type_strategy, mlm_ratio=conf.mlm_proba,
+                                 pattern_pos=conf.pattern_pos, pred_strategy=conf.pred_strategy,
+                                 )
     # loss models
     logger.info("使用bce损失函数")
     loss_model = torch.nn.BCEWithLogitsLoss(reduction="mean")
@@ -85,14 +97,16 @@ def train_model(conf: TrainConfig):
 
     global_step = 1
     logger.info("start train")
-    mlogs, accs, f1s, jaccs, avgs = [], [], [], [], []
+    accs, f1s, jaccs, avgs = [], [], [], []
     for epoch in range(conf.num_epochs):
         epoch_steps = train_data_iter.get_steps()
         for step, ipt in enumerate(train_data_iter):
             step += 1
             ipt = {k: v.to(device) for k, v in ipt.items()}
             labels = ipt["labels"].float()
-            encoded, logits = model(**ipt)
+            logits = model(**ipt)
+            # if random.random() > 0.9:
+            #     print("logits.shape", logits.shape)
             loss = loss_model(logits, labels)
             loss.backward()
             # 梯度裁剪
@@ -105,15 +119,37 @@ def train_model(conf: TrainConfig):
             global_step += 1
             if step % conf.log_step == 0:
                 logger.info("epoch-{}, step-{}/{}, loss:{}".format(epoch + 1, step, epoch_steps, loss.data))
-            if (global_step % conf.save_step == 0 and epoch > 1) or global_step == 10:
+            if global_step % conf.save_step == 0:
                 # 做个测试
-                acc, f1, mlogscore, jacc = evaluate(model=model, data_iter=dev_data_iter, device=device)
+                acc, f1, jacc = evaluate(model=model, data_iter=dev_data_iter, device=device)
                 logger.info(
-                    "epoch-{}, step-{}/{}, global_step-{}, 1-mlogscore:{}".format(
-                        epoch + 1, step, epoch_steps, global_step, mlogscore))
-                mlogs.append(mlogscore)
-                logger.info("best 1-mlogloss:{}".format(max(mlogs)))
-                if len(mlogs) == 1 or mlogs[-1] > max(mlogs[:-1]):
-                    model.save(mlog_best_model_dir)
-                    with open(os.path.join(mlog_best_model_dir, "global-step-{}.txt".format(global_step)), "w") as fw:
+                    "epoch-{}, step-{}/{}, acc:{},\tf1:{},\tjacc:{}".format(epoch + 1, step, epoch_steps, acc, f1,
+                                                                            jacc))
+                avgs.append((acc + f1 + jacc) / 3)
+                accs.append(acc)
+                f1s.append(f1)
+                jaccs.append(jacc)
+                logger.info("best acc:{}".format(max(accs)))
+                logger.info("best f1:{}".format(max(f1s)))
+                logger.info("best jacc:{}".format(max(jaccs)))
+                if len(avgs) == 1 or avgs[-1] > max(avgs[:-1]):
+                    model.save(avg_best_model_dir)
+                    with open(os.path.join(avg_best_model_dir, "global-step-{}.txt".format(global_step)), "w") as fw:
                         pass
+
+            ################################# 调试用 输出相关信息 ################################
+            if random.random() > 0.999:
+                ipt_ids = ipt["input_ids"].cpu().numpy()[0, :].tolist()
+                ipt_tokens = model.tokenizer.convert_ids_to_tokens(ipt_ids)
+                ttype_ids = ipt["token_type_ids"].cpu().numpy()[0, :].tolist()
+                attn_mask = ipt["attention_mask"].cpu().numpy()[0, :].tolist()
+                print(ipt_ids)
+                print(ipt_tokens)
+                print(ttype_ids)
+                print(attn_mask)
+                if conf.use_label_mask:
+                    print(ipt["labels"].cpu().numpy()[0, :].tolist())
+                    print(ipt["label_indexs"].cpu().numpy()[0, :].tolist())
+                    print(ipt["mlm_labels"].cpu().numpy()[0, :].tolist())
+                print(
+                    "===================================================================================================")

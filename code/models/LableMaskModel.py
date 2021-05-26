@@ -22,8 +22,8 @@ class LableMaskModel(nn.Module):
 
         # 分类器
         self.dropout = nn.Dropout(0.1)
-        self.clf = nn.Linear(in_features=self.bert.config.hidden_size, out_features=conf.num_labels)
-        self.tokenizer = BertTokenizer(join(model_dir, "vocab.txt"))
+        self.clf = nn.Linear(in_features=self.bert.config.hidden_size, out_features=1)
+        self.tokenizer = BertTokenizer.from_pretrained(model_dir)
         if exists(join(model_dir, "clf.bin")):
             logger.info("加载模型目录里的clf权重:{}".format(join(model_dir, "clf.bin")))
             self.clf.load_state_dict(torch.load(join(model_dir, "clf.bin"), map_location="cpu"))
@@ -74,6 +74,7 @@ class LableMaskModel(nn.Module):
         当前模型设置每一个batch内掩盖掉label数量是一样的，这样可以一个batch拼成一个tensor，好操作些
         所谓掩掉是指在完形填空中该项是空的
         """
+        # token_embeddings 可以拿过来训练mlm任务
         token_embeddings, _ = self.bert(input_ids=input_ids, attention_mask=attention_mask,
                                         token_type_ids=token_type_ids)[0:2]
         # label_token_embed = []
@@ -82,7 +83,7 @@ class LableMaskModel(nn.Module):
         encoded = self.dropout(label_token_embed)
 
         logits = self.clf(encoded).squeeze(-1)  # (bsz,num_mask_label) 在sigmoid一下就是概率了
-        return encoded, logits
+        return logits
 
     def save(self, save_dir: str):
         self.bert.save_pretrained(save_dir)

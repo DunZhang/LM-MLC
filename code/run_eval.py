@@ -12,6 +12,7 @@ if __name__ == "__main__":
 
     conf = TrainConfig()
     conf.load(join(model_dir, "train_conf.json"))
+    # 默认是升序的
     conf.mask_order = [51, 52, 50, 53, 47, 49, 48, 45, 46, 44, 41, 43, 42, 40, 39, 38, 36, 37, 35, 34, 32, 31, 33, 30, 29, 28, 26, 25, 27, 24, 23, 21, 22, 20, 19, 17, 18, 16, 14, 15, 12, 11, 13, 8, 10, 9, 6, 7, 5, 4, 3, 2, 0, 1]
     conf.mask_order.reverse()
     conf.pred_strategy = "normal"
@@ -19,6 +20,8 @@ if __name__ == "__main__":
 # acc, f1, jacc 0.422 0.7312983662940672 0.5764147746526601
     # arg max acc, f1, jacc 0.344 0.7037985488689714 0.5429700362199539
     # arg min acc, f1, jacc 0.405 0.7284600800505584 0.5728959575878065
+    # 升序  acc, f1, jacc 0.423 0.7306701030927835 0.5756345177664974
+    # 降序  acc, f1, jacc 0.424 0.7314556009460331 0.5766101694915254
     # device
     os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
     os.environ["CUDA_VISIBLE_DEVICES"] = conf.device

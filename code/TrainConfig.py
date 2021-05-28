@@ -33,7 +33,8 @@ class TrainConfig():
         self.use_label_mask = None
         self.init_from_pretrained = None
         self.desc = None
-        
+        self.eval_repeat_times = None
+
 
 
     def save(self, save_dir):

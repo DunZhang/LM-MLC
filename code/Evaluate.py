@@ -1,15 +1,14 @@
 import sys
 
 sys.path.append("./models")
-from sklearn.metrics import auc, roc_curve, classification_report, accuracy_score, f1_score, hamming_loss, log_loss, \
-    jaccard_score
+from sklearn.metrics import accuracy_score, f1_score, hamming_loss, jaccard_score
 
 import torch
 import numpy as np
 from DataIter import BERTDataIter, get_labelbert_input_single_sen
 import os
 from SigmoidModel import SigmoidModel
-from LableMaskModel import LableMaskModel
+from LabelMaskModel import LabelMaskModel
 from TrainConfig import TrainConfig
 from os.path import join
 from scipy.special import expit
@@ -58,6 +57,8 @@ def _pred_logits_labelmask_part(model: torch.nn.Module, data_iter, device: torch
     data_iter.reset()
     if data_iter.mask_order == "random":
         mask_order = list(range(num_labels))  # 这个顺序很重要
+        random.shuffle(mask_order)
+        # print(mask_order)
     else:
         mask_order = data_iter.mask_order
     with torch.no_grad():
@@ -66,7 +67,7 @@ def _pred_logits_labelmask_part(model: torch.nn.Module, data_iter, device: torch
             batch_logits = np.empty((len(batch_data), num_labels))  # 存放这一批数据集的每个loabel的logits
             # 预测17次获取最终结果
             for i in range(num_labels, 0, -1):  # 多少个标签就预测多少次
-                if data_iter.pred_strategy == "normal":
+                if data_iter.pred_strategy == "one-by-one":
                     masked_labels_list = [mask_order[: i] for _ in range(len(batch_data))]
                     pred_labels_list = [mask_order[i - 1:i] for _ in range(len(batch_data))]
                 elif data_iter.pred_strategy == "top-p" and i == num_labels:  # 初次使用全量
@@ -89,20 +90,15 @@ def _pred_logits_labelmask_part(model: torch.nn.Module, data_iter, device: torch
                 t_batch_logits = model(**ipt).cpu().data.numpy()  # b*num_labels
                 t_batch_proba = expit(t_batch_logits)  # batch_size * len(pred_labels_list)
                 #####################################################################
-                if data_iter.pred_strategy == "normal":
+                if data_iter.pred_strategy == "one-by-one":
                     selected_label_list = [mask_order[i - 1] for _ in range(t_batch_proba.shape[0])]
                 elif data_iter.pred_strategy == "top-p":  # 选择置信度最高的
                     # 获取置信度
-                    t_batch_confidence = np.copy(t_batch_proba)
-                    for x in range(t_batch_confidence.shape[0]):
-                        for y in range(t_batch_confidence.shape[1]):
-                            if t_batch_confidence[x, y] < 0.5:
-                                t_batch_confidence[x, y] = 1 - t_batch_confidence[x, y]
+                    t_batch_confidence = np.abs(t_batch_proba - 0.5)
                     # 获取目标mask
-                    max_score_ids = np.argmin(t_batch_confidence, axis=1).tolist()
+                    max_score_ids = np.argmax(t_batch_confidence, axis=1).tolist()
                     selected_label_list = [pred_labels_list[num_record][int(value)] for num_record, value in
                                            enumerate(max_score_ids)]
-
                 for idx, data_label in enumerate(batch_data):
                     selected_label = selected_label_list[idx]
                     batch_logits[idx, selected_label] = t_batch_logits[idx, pred_labels_list[idx].index(selected_label)]
@@ -125,7 +121,7 @@ def pred_logits(model: torch.nn.Module, data_iter, device: torch.device, save_pa
 
     if isinstance(model, SigmoidModel):
         return _pred_logits_fc(model, data_iter, device, save_path)
-    elif isinstance(model, LableMaskModel):
+    elif isinstance(model, LabelMaskModel):
         return _pred_logits_labelmask_part(model, data_iter, device, save_path)
 
 
@@ -176,7 +172,8 @@ def evaluate(model: torch.nn.Module, data_iter, device: torch.device):
     acc = accuracy_score(y_true, y_pred)  # 严格准确率
     f1 = f1_score(y_true, y_pred, average="micro")  # 着重与每一个类别的F1值
     jacc = jaccard_score(y_true, y_pred, average="micro")  # jacc score
-    return acc, f1, jacc
+    hamming = hamming_loss(y_true, y_pred)  # jacc score
+    return acc, f1, jacc, 1 - hamming
 
 
 if __name__ == "__main__":
@@ -187,10 +184,10 @@ if __name__ == "__main__":
     conf = TrainConfig()
     conf.load(join(model_dir, "train_conf.json"))
     if hasattr(conf, "label_mask_type") and conf.label_mask_type in ["part", "all"]:
-        model = LableMaskModel(model_dir).to(device)
+        model = LabelMaskModel(model_dir).to(device)
     else:
         model = SigmoidModel(model_dir).to(device)
-    print(isinstance(model, LableMaskModel))
+    print(isinstance(model, LabelMaskModel))
     data_iter = BERTDataIter(data_path="../user_data/data/hold_out/dev.txt", tokenizer=model.tokenizer,
                              batch_size=32, shuffle=False, max_len=220, label2id=model.get_label2id(),
                              label_mask_type=conf.label_mask_type)

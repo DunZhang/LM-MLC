@@ -16,7 +16,7 @@ class BERTDataIter():
                  max_len: int = 128, use_label_mask=False, task="train", num_labels=10, mask_order="random",
                  num_pattern_begin=1, num_pattern_end=1,
                  wrong_label_ratio=0.08, token_type_strategy=None, mlm_ratio=0.15,
-                 pattern_pos="end", pred_strategy="normal",
+                 pattern_pos="end", pred_strategy="one-by-one",
                  ):
         """
         labe2id不为空代表使用完形填空模型
@@ -179,14 +179,15 @@ def get_labelbert_input_single_sen(data, max_len, tokenizer, masked_labels_list=
         # 掩码
         text_input_ids, mlm_mask_label = DataUtil.mask_ids(text_input_ids, tokenizer, all_token_ids, mlm_ratio)
         #################### 获取标签信息 ############################
-        label_input_ids, label_token_type_ids, ipt_label_indexs, ipt_labels_values = [], [], [], []
+        label_input_ids, label_token_type_ids, = [], []
+        ipt_label_indexs, ipt_labels_values = [None] * len(pred_labels), [None] * len(pred_labels)
         for label_idx in range(num_labels):  # 把每个标签的值拼接到输入上
             label_input_ids.extend(["[LABEL-{}-S-{}]".format(label_idx, i) for i in range(num_pattern_begin)])
             if label_idx in masked_labels:  # 该标签需要被掩盖掉
                 label_input_ids.append("[LABEL-{}-MASK]".format(label_idx))
                 if label_idx in pred_labels:
-                    ipt_label_indexs.append(len(label_input_ids) - 1)  # 该位置的字是UNLABEL，用它来预测
-                    ipt_labels_values.append(labels[label_idx])
+                    ipt_label_indexs[pred_labels.index(label_idx)] = len(label_input_ids) - 1  # 该位置的字是UNLABEL，用它来预测
+                    ipt_labels_values[pred_labels.index(label_idx)] = labels[label_idx]
             else:
                 # print(label_idx)
                 value = "[LABEL-{}-YES]".format(label_idx) if labels[label_idx] == 1 else "[LABEL-{}-NO]".format(

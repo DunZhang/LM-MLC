@@ -24,7 +24,7 @@ if __name__ == "__main__":
     conf = TrainConfig()
     # 模型结构
     conf.pretrained_bert_dir = "../data/public_models/bert_base"
-    conf.max_len = 400
+    conf.max_len = 450
     # 训练相关
     conf.seed = 2021
     conf.device = "0"
@@ -35,7 +35,7 @@ if __name__ == "__main__":
     conf.num_labels = 54
     # 输出信息
     conf.log_step = 10
-    conf.save_step = 2000  # do a evaluate and save best model
+    conf.save_step = 100  # do a evaluate and save best model
     conf.use_label_mask = True
     conf.init_from_pretrained = True
     # 前后token数量
@@ -46,15 +46,18 @@ if __name__ == "__main__":
 
     # 是否使用mlm任务联合训练
     conf.num_mlm_steps_or_epochs = "epoch-0"  # epoch-xx 或 step-xx
+    # TODO 继续预训练的这个功能暂时没做
     conf.mlm_proba = -0.15  # 掩码概率
 
     # token_type 策略
     conf.token_type_strategy = "diff"  # None:无策略，same:标签使用一种token_type, diff:每个标签使用不同的token_type
 
+    conf.eval_repeat_times = 3
     # 训练时标签mask的顺序
+
     conf.mask_order = "random"
     # 预测时标签的顺序
-    conf.pred_strategy = "top-p"  # normal or top-p
+    conf.pred_strategy = "one-by-one"  # one-by-one or top-p
     # seq2seq: 预测时只知道那些标签是1，不只到哪些标签是0，哪些标签待预测，训练速度慢
     # unilm: 预测时知道哪些标签是1，哪些标签是0，不知道哪些标签待预测，可以并行训练
     # LableMask：预测时知道哪些标签是1，哪些标签是0，哪些标签待预测，可以并行训练
@@ -63,9 +66,9 @@ if __name__ == "__main__":
 
     # 相关路径
     conf.train_data_path = "../data/format_data/aapd_train.txt"
-    conf.dev_data_path = "../data/format_data/aapd_test.txt"
+    conf.dev_data_path = "../data/format_data/aapd_valid.txt"
     conf.data_sep = "\t"  # text与label的sep
     # 输出路径
-    conf.out_dir = "../output/trained_models/test_labelmask_aapd_vv7"
+    conf.out_dir = "../output/trained_models/aapd_label_mask"
     conf.desc = ""
     train_model(conf)

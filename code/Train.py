@@ -8,7 +8,7 @@ from DataUtil import DataUtil
 from Evaluate import evaluate
 from transformers import AdamW, get_linear_schedule_with_warmup
 from SigmoidModel import SigmoidModel
-from LableMaskModel import LableMaskModel
+from LabelMaskModel import LabelMaskModel
 from os.path import join
 
 
@@ -51,7 +51,7 @@ def train_model(conf: TrainConfig):
             fw.write("{}\t=\t{}\n".format(k, v))
     # models
     if conf.use_label_mask:
-        model = LableMaskModel(conf.pretrained_bert_dir, conf=conf, init_from_pretrained=conf.init_from_pretrained)
+        model = LabelMaskModel(conf.pretrained_bert_dir, conf=conf, init_from_pretrained=conf.init_from_pretrained)
     else:
         model = SigmoidModel(conf.pretrained_bert_dir, conf=conf)
     model = model.to(device)
@@ -97,7 +97,7 @@ def train_model(conf: TrainConfig):
 
     global_step = 1
     logger.info("start train")
-    accs, f1s, jaccs, avgs = [], [], [], []
+    accs, f1s, jaccs, hammings, avgs = [], [], [], [], []
     for epoch in range(conf.num_epochs):
         epoch_steps = train_data_iter.get_steps()
         for step, ipt in enumerate(train_data_iter):
@@ -121,17 +121,31 @@ def train_model(conf: TrainConfig):
                 logger.info("epoch-{}, step-{}/{}, loss:{}".format(epoch + 1, step, epoch_steps, loss.data))
             if global_step % conf.save_step == 0:
                 # 做个测试
-                acc, f1, jacc = evaluate(model=model, data_iter=dev_data_iter, device=device)
+                acc_t, f1_t, jacc_t, hamming_t = [], [], [], []
+                for i in range(conf.eval_repeat_times):
+                    res = evaluate(model=model, data_iter=dev_data_iter, device=device)
+                    acc_t.append(res[0])
+                    f1_t.append(res[1])
+                    jacc_t.append(res[2])
+                    hamming_t.append(res[3])
+                acc = sum(acc_t) / conf.eval_repeat_times
+                f1 = sum(f1_t) / conf.eval_repeat_times
+                jacc = sum(jacc_t) / conf.eval_repeat_times
+                hamming = sum(hamming_t) / conf.eval_repeat_times
+
                 logger.info(
-                    "epoch-{}, step-{}/{}, acc:{},\tf1:{},\tjacc:{}".format(epoch + 1, step, epoch_steps, acc, f1,
-                                                                            jacc))
-                avgs.append((acc + f1 + jacc) / 3)
+                    "epoch-{}, step-{}/{}, acc:{},\tf1:{},\tjacc:{}\t1-hamming:{}".format(epoch + 1, step, epoch_steps,
+                                                                                          acc, f1,
+                                                                                          jacc, hamming))
+                avgs.append((acc + f1 + jacc + hamming) / 4)
                 accs.append(acc)
                 f1s.append(f1)
                 jaccs.append(jacc)
+                hammings.append(hamming)
                 logger.info("best acc:{}".format(max(accs)))
                 logger.info("best f1:{}".format(max(f1s)))
                 logger.info("best jacc:{}".format(max(jaccs)))
+                logger.info("best hammings:{}".format(max(hammings)))
                 if len(avgs) == 1 or avgs[-1] > max(avgs[:-1]):
                     model.save(avg_best_model_dir)
                     with open(os.path.join(avg_best_model_dir, "global-step-{}.txt".format(global_step)), "w") as fw:

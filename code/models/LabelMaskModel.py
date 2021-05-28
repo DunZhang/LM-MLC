@@ -11,7 +11,7 @@ import logging
 logger = logging.getLogger("dianfei")
 
 
-class LableMaskModel(nn.Module):
+class LabelMaskModel(nn.Module):
     def __init__(self, model_dir: str, conf: TrainConfig = None, init_from_pretrained: bool = True):
         super().__init__()
         if conf is None:

@@ -119,7 +119,13 @@ class DataUtil():
         return masked_ids, mask_label
 
     @staticmethod
-    def get_label_list(data_path: str):
+    def get_label_list(data_path: str, order="asc"):
+        """
+
+        :param data_path:
+        :param order:  asc or desc
+        :return:
+        """
         with open(data_path, "r", encoding="utf8") as fr:
             labels = [line.split("\t")[1].strip() for line in fr]
         label2count = defaultdict(int)
@@ -128,9 +134,8 @@ class DataUtil():
                 if j == "1":
                     label2count[idx] += 1
         res = [(k, v) for k, v in label2count.items()]
-        res.sort(key=lambda x: x[1])
-        print(res)
-        print([i[0] for i in res])
+        res.sort(key=lambda x: x[1], reverse=(order == "desc"))
+        return ([i[0] for i in res])
 
 
 if __name__ == "__main__":

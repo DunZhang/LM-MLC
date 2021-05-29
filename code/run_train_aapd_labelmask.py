@@ -35,7 +35,7 @@ if __name__ == "__main__":
     conf.num_labels = 54
     # 输出信息
     conf.log_step = 10
-    conf.save_step = 100  # do a evaluate and save best model
+    conf.save_step = 2000  # do a evaluate and save best model
     conf.use_label_mask = True
     conf.init_from_pretrained = True
     # 前后token数量

@@ -7,6 +7,8 @@ import random
 from os.path import join, isfile, isdir
 from os import listdir
 from collections import defaultdict
+from scipy.stats import pearsonr, spearmanr, kendalltau
+import pandas as pd
 
 logger = logging.getLogger("OPPOSTS")
 
@@ -137,9 +139,38 @@ class DataUtil():
         res.sort(key=lambda x: x[1], reverse=(order == "desc"))
         return ([i[0] for i in res])
 
+    @staticmethod
+    def get_label_list_corr(data_path: str, save_path=None):
+        """
+
+        :param data_path:
+        :param order:  asc or desc
+        :return:
+        """
+        with open(data_path, "r", encoding="utf8") as fr:
+            labels = [line.split("\t")[1].strip() for line in fr]
+        num_labels = len(labels[0])
+        labels_t = [[] for _ in range(num_labels)]
+        for i in labels:
+            for idx, j in enumerate(i):
+                labels_t[idx].append(int(j))
+        res_df = []
+        res = []
+        for target_label in range(num_labels):
+            corrs = [abs(pearsonr(i, labels_t[target_label])[0]) for i in labels_t]
+            res_df.append(corrs)
+            corr = (sum(corrs) - 1) / (len(corrs) - 1)
+            res.append((target_label, corr))
+        if save_path:
+            pd.DataFrame(res_df).to_excel(save_path, index=False)
+        return res
+
 
 if __name__ == "__main__":
-    DataUtil.get_label_list("../data/format_data/aapd_train.txt")
+    # DataUtil.get_label_list("../data/format_data/aapd_train.txt")
+    res = DataUtil.get_label_list_corr("../data/format_data/rcv1v2_train.txt", "zdd1.xlsx")
+    for i in res:
+        print(i)
     # DataUtil.build_vocab()
     # data = DataUtil.read_data("../user_data/data/hold_out_20210422/dev.txt")
     # c1, c2, c3 = 0, 0, 0

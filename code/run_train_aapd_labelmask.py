@@ -30,7 +30,7 @@ if __name__ == "__main__":
     conf.device = "0"
     conf.lr = 5e-5
     conf.batch_size = 32
-    conf.num_epochs = 25
+    conf.num_epochs = 20
     conf.warmup_proportion = 0.1
     conf.num_labels = 54
     # 输出信息
@@ -52,10 +52,11 @@ if __name__ == "__main__":
     # token_type 策略
     conf.token_type_strategy = "diff"  # None:无策略，same:标签使用一种token_type, diff:每个标签使用不同的token_type
 
-    conf.eval_repeat_times = 3
+    conf.eval_repeat_times = 1
     # 训练时标签mask的顺序
 
     conf.mask_order = "random"
+    conf.mask_token = "[MASK]"  # mask_token or diff, diff 就是每个标签一个mask
     # 预测时标签的顺序
     conf.pred_strategy = "one-by-one"  # one-by-one or top-p
     # seq2seq: 预测时只知道那些标签是1，不只到哪些标签是0，哪些标签待预测，训练速度慢

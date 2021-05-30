@@ -34,6 +34,7 @@ class TrainConfig():
         self.init_from_pretrained = None
         self.desc = None
         self.eval_repeat_times = None
+        self.mask_token = None
 
 
 

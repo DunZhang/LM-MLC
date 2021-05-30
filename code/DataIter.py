@@ -16,13 +16,14 @@ class BERTDataIter():
                  max_len: int = 128, use_label_mask=False, task="train", num_labels=10, mask_order="random",
                  num_pattern_begin=1, num_pattern_end=1,
                  wrong_label_ratio=0.08, token_type_strategy=None, mlm_ratio=0.15,
-                 pattern_pos="end", pred_strategy="one-by-one",
+                 pattern_pos="end", pred_strategy="one-by-one", mask_token="[MASK]"
                  ):
         """
         labe2id不为空代表使用完形填空模型
         """
         super().__init__()
         self.mask_order = mask_order
+        self.mask_token = mask_token
         self.pred_strategy = pred_strategy
         self.num_pattern_begin = num_pattern_begin
         self.num_pattern_end = num_pattern_end
@@ -104,7 +105,7 @@ class BERTDataIter():
                                                       wrong_label_ratio=self.wrong_label_ratio,
                                                       token_type_strategy=self.token_type_strategy,
                                                       mlm_ratio=self.mlm_ratio,
-                                                      pattern_pos=self.pattern_pos)
+                                                      pattern_pos=self.pattern_pos, mask_token=self.mask_token)
             else:
                 return batch_data
         else:
@@ -153,7 +154,8 @@ def _get_bert_input_single_sen(data, max_len, tokenizer):
 
 def get_labelbert_input_single_sen(data, max_len, tokenizer, masked_labels_list=None, pred_labels_list=None,
                                    num_pattern_begin=1, num_pattern_end=1,
-                                   wrong_label_ratio=0.08, token_type_strategy=None, mlm_ratio=0.15, pattern_pos="end"):
+                                   wrong_label_ratio=0.08, token_type_strategy=None, mlm_ratio=0.15, pattern_pos="end",
+                                   mask_token="[MASK]"):
     """
     模板式bert
     :param data: [[ids1,label],[ids2,lable],...]
@@ -165,6 +167,7 @@ def get_labelbert_input_single_sen(data, max_len, tokenizer, masked_labels_list=
     num_labels = len(data[0][1])
     num_add_tokens_per_label = 1 + num_pattern_begin + num_pattern_end
     input_ids, attention_mask, token_type_ids, all_labels, all_label_indexs, mlm_labels = [], [], [], [], [], []
+    # TODO 日后根据mask_token 修改
     all_token_ids = list(
         range(len(tokenizer.get_vocab()) - num_labels * 3 - (num_pattern_begin + num_pattern_end) * num_labels))
     # 确定max_len
@@ -184,16 +187,25 @@ def get_labelbert_input_single_sen(data, max_len, tokenizer, masked_labels_list=
         for label_idx in range(num_labels):  # 把每个标签的值拼接到输入上
             label_input_ids.extend(["[LABEL-{}-S-{}]".format(label_idx, i) for i in range(num_pattern_begin)])
             if label_idx in masked_labels:  # 该标签需要被掩盖掉
-                label_input_ids.append("[LABEL-{}-MASK]".format(label_idx))
+                if mask_token == "diff":
+                    label_input_ids.append("[LABEL-{}-MASK]".format(label_idx))
+                else:
+                    label_input_ids.append(mask_token)
                 if label_idx in pred_labels:
                     ipt_label_indexs[pred_labels.index(label_idx)] = len(label_input_ids) - 1  # 该位置的字是UNLABEL，用它来预测
                     ipt_labels_values[pred_labels.index(label_idx)] = labels[label_idx]
             else:
                 # print(label_idx)
-                value = "[LABEL-{}-YES]".format(label_idx) if labels[label_idx] == 1 else "[LABEL-{}-NO]".format(
-                    label_idx)
-                if random.random() < wrong_label_ratio:  # 制造一些噪音 增强泛化性
-                    value = "[LABEL-{}-YES]".format(label_idx) if "NO" in value else "[LABEL-{}-NO]".format(label_idx)
+                if mask_token == "diff":
+                    value = "[LABEL-{}-YES]".format(label_idx) if labels[label_idx] == 1 else "[LABEL-{}-NO]".format(
+                        label_idx)
+                    if random.random() < wrong_label_ratio:  # 制造一些噪音 增强泛化性
+                        value = "[LABEL-{}-YES]".format(label_idx) if "NO" in value else "[LABEL-{}-NO]".format(
+                            label_idx)
+                else:
+                    value = "[YES]".format(label_idx) if labels[label_idx] == 1 else "[NO]".format(label_idx)
+                    if random.random() < wrong_label_ratio:  # 制造一些噪音 增强泛化性
+                        value = "[YES]" if "NO" in value else "[NO]"
                 label_input_ids.append(value)
             label_input_ids.extend(["[LABEL-{}-E-{}]".format(label_idx, i) for i in range(num_pattern_end)])
             if token_type_strategy is None:

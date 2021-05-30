@@ -36,10 +36,15 @@ class LabelMaskModel(nn.Module):
             new_tokens = []
             for idx in range(conf.num_labels):
                 new_tokens.extend(["[LABEL-{}-S-{}]".format(idx, i) for i in range(conf.num_pattern_begin)])
-                new_tokens.append("[LABEL-{}-MASK]".format(idx))
-                new_tokens.append("[LABEL-{}-YES]".format(idx))
-                new_tokens.append("[LABEL-{}-NO]".format(idx))
+                if conf.mask_token == "diff":
+                    new_tokens.append("[LABEL-{}-MASK]".format(idx))
+                    new_tokens.append("[LABEL-{}-YES]".format(idx))
+                    new_tokens.append("[LABEL-{}-NO]".format(idx))
                 new_tokens.extend(["[LABEL-{}-E-{}]".format(idx, i) for i in range(conf.num_pattern_end)])
+            if conf.mask_token != "diff":
+                new_tokens.append(conf.mask_token)
+                new_tokens.append("[YES]")
+                new_tokens.append("[NO]")
             self.tokenizer.add_tokens(new_tokens)
             hidden_size = self.bert.config.hidden_size
             # 修改word embeddings

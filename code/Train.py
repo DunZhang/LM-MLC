@@ -98,8 +98,16 @@ def train_model(conf: TrainConfig):
                                  pattern_pos=conf.pattern_pos, pred_strategy=conf.pred_strategy,
                                  mask_token=conf.mask_token)
     # loss models
-    logger.info("使用bce损失函数")
-    loss_model = torch.nn.BCEWithLogitsLoss(reduction="mean")
+    if conf.loss_type == "bce":
+        logger.info("使用bce损失函数")
+        loss_model = torch.nn.BCEWithLogitsLoss(reduction="mean")
+    elif conf.loss_type == "mcc":
+        logger.info("使用mcc损失函数")
+        loss_model = multilabel_categorical_crossentropy
+    elif conf.loss_type == "ce损失函数":
+        logger.info("使用ce损失函数")
+        loss_model = torch.nn.CrossEntropyLoss()
+
     # optimizer
     logger.info("define optimizer...")
     no_decay = ["bias", "LayerNorm.weight"]
@@ -123,11 +131,16 @@ def train_model(conf: TrainConfig):
         for step, ipt in enumerate(train_data_iter):
             step += 1
             ipt = {k: v.to(device) for k, v in ipt.items()}
-            labels = ipt["labels"].float()
+            labels = ipt["labels"].float()  # bsz * num_labels
             logits = model(**ipt)
             # if random.random() > 0.9:
             #     print("logits.shape", logits.shape)
-            loss = loss_model(logits, labels)
+            if conf.loss_type == "bce":
+                # 不用做改动
+                loss = loss_model(logits, labels)
+            elif conf.loss_type == "ce":
+                loss = loss_model(logits.reshape((-1, 2)), labels.reshape((-1,)))
+            # loss = loss_model(logits, labels)
             loss.backward()
             # 梯度裁剪
             torch.nn.utils.clip_grad_norm_(model.parameters(), 1)

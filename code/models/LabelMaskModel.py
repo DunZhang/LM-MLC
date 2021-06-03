@@ -22,8 +22,10 @@ class LabelMaskModel(nn.Module):
 
         # 分类器
         self.dropout = nn.Dropout(0.1)
-        if conf.loss_type in ["bce"]
-        self.clf = nn.Linear(in_features=self.bert.config.hidden_size, out_features=1)
+        if conf.loss_type in ["bce", "mcc"]:
+            self.clf = nn.Linear(in_features=self.bert.config.hidden_size, out_features=1)
+        else:  # ce 和focal loss都出两个
+            self.clf = nn.Linear(in_features=self.bert.config.hidden_size, out_features=2)
         self.tokenizer = BertTokenizer.from_pretrained(model_dir)
         if exists(join(model_dir, "clf.bin")):
             logger.info("加载模型目录里的clf权重:{}".format(join(model_dir, "clf.bin")))
@@ -86,9 +88,13 @@ class LabelMaskModel(nn.Module):
         # label_token_embed = []
         label_indexs = label_indexs.unsqueeze(-1).expand((*label_indexs.shape, token_embeddings.shape[2]))
         label_token_embed = torch.gather(token_embeddings, 1, label_indexs)
-        encoded = self.dropout(label_token_embed)
+        encoded = self.dropout(label_token_embed)  # bsz * num_mask_label * hidden_size
+        if self.conf.loss_type in ["bce", "mcc"]:
+            logits = self.clf(encoded).squeeze(-1)  # (bsz,num_mask_label) 在sigmoid一下就是概率了
+        else:
+            logits = self.clf(encoded)  # bsz * num_mask_label * 2
+            # 需要转成evaluate函数的logits，那不然无法计算相关评价指标
 
-        logits = self.clf(encoded).squeeze(-1)  # (bsz,num_mask_label) 在sigmoid一下就是概率了
         return logits
 
     def save(self, save_dir: str):

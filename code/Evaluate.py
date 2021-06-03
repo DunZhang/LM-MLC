@@ -63,7 +63,7 @@ def _pred_logits_labelmask_part(model: torch.nn.Module, data_iter, device: torch
         mask_order = data_iter.mask_order
     with torch.no_grad():
         for step, batch_data in enumerate(data_iter):  # 对于每一批数据
-            print("eval-step:{}/{}".format(step, data_iter.get_steps()))
+            # print("eval-step:{}/{}".format(step, data_iter.get_steps()))
             batch_logits = np.empty((len(batch_data), num_labels))  # 存放这一批数据集的每个loabel的logits
             # 预测17次获取最终结果
             for i in range(num_labels, 0, -1):  # 多少个标签就预测多少次
@@ -73,6 +73,9 @@ def _pred_logits_labelmask_part(model: torch.nn.Module, data_iter, device: torch
                 elif data_iter.pred_strategy == "top-p" and i == num_labels:  # 初次使用全量
                     masked_labels_list = [mask_order[: i] for _ in range(len(batch_data))]
                     pred_labels_list = [mask_order[: i] for _ in range(len(batch_data))]
+                #TODO 临时测试用
+                masked_labels_list = [list(range(num_labels)) for _ in range(len(batch_data))]
+                pred_labels_list = [list(range(num_labels)) for _ in range(len(batch_data))]
                 ipt = get_labelbert_input_single_sen(batch_data, max_len, tokenizer,
                                                      masked_labels_list=masked_labels_list,
                                                      pred_labels_list=pred_labels_list,
@@ -107,7 +110,11 @@ def _pred_logits_labelmask_part(model: torch.nn.Module, data_iter, device: torch
                         # 更新 pred_labels_list 和 masked_labels_list
                         pred_labels_list[idx].remove(selected_label)
                         masked_labels_list[idx].remove(selected_label)
-            logits.append(batch_logits)
+                # TODO 临时测试用
+                break
+            # TODO 临时测试用
+            # logits.append(batch_logits)
+            logits.append(t_batch_logits)
     y_true = np.vstack(y_true)
     logits = np.vstack(logits)
     if save_path is not None:

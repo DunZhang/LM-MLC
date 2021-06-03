@@ -96,7 +96,9 @@ class BERTDataIter():
                     masked_labels_list = [self.mask_order[:num_mask] for _ in range(len(batch_data))]
                     pred_labels_list = [self.mask_order[num_mask - 1:num_mask] for _ in
                                         range(len(batch_data))]
-
+                # TODO 临时测试用
+                masked_labels_list = [deepcopy(self.all_labels) for _ in range(len(batch_data))]
+                pred_labels_list = deepcopy(masked_labels_list)
                 return get_labelbert_input_single_sen(batch_data, self.max_len, self.tokenizer,
                                                       masked_labels_list=masked_labels_list,
                                                       pred_labels_list=pred_labels_list,

@@ -30,7 +30,7 @@ if __name__ == "__main__":
     conf.device = "0"
     conf.lr = 5e-5
     conf.batch_size = 32
-    conf.num_epochs = 20
+    conf.num_epochs = 30
     conf.warmup_proportion = 0.1
     conf.num_labels = 54
     # 输出信息
@@ -70,6 +70,6 @@ if __name__ == "__main__":
     conf.dev_data_path = "../data/format_data/aapd_valid.txt"
     conf.data_sep = "\t"  # text与label的sep
     # 输出路径
-    conf.out_dir = "../output/trained_models/aapd_label_mask"
+    conf.out_dir = "../output/trained_models/aapd_label_mask_v1"
     conf.desc = ""
     train_model(conf)

@@ -66,7 +66,7 @@ def train_model(conf: TrainConfig):
                                    wrong_label_ratio=conf.wrong_label_ratio,
                                    token_type_strategy=conf.token_type_strategy, mlm_ratio=conf.mlm_proba,
                                    pattern_pos=conf.pattern_pos, pred_strategy=conf.pred_strategy,
-                                   )
+                                   mask_token=conf.mask_token)
     # dev data
     dev_data_iter = BERTDataIter(data_path=conf.dev_data_path, tokenizer=model.tokenizer,
                                  batch_size=conf.batch_size, shuffle=False, max_len=conf.max_len,
@@ -76,7 +76,7 @@ def train_model(conf: TrainConfig):
                                  wrong_label_ratio=conf.wrong_label_ratio,
                                  token_type_strategy=conf.token_type_strategy, mlm_ratio=conf.mlm_proba,
                                  pattern_pos=conf.pattern_pos, pred_strategy=conf.pred_strategy,
-                                 )
+                                 mask_token=conf.mask_token)
     # loss models
     logger.info("使用bce损失函数")
     loss_model = torch.nn.BCEWithLogitsLoss(reduction="mean")
@@ -119,7 +119,7 @@ def train_model(conf: TrainConfig):
             global_step += 1
             if step % conf.log_step == 0:
                 logger.info("epoch-{}, step-{}/{}, loss:{}".format(epoch + 1, step, epoch_steps, loss.data))
-            if global_step % conf.save_step == 0:
+            if global_step % conf.save_step == 0 or global_step == 100:
                 # 做个测试
                 acc_t, f1_t, jacc_t, hamming_t = [], [], [], []
                 for i in range(conf.eval_repeat_times):

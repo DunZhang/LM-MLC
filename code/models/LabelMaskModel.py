@@ -22,6 +22,7 @@ class LabelMaskModel(nn.Module):
 
         # 分类器
         self.dropout = nn.Dropout(0.1)
+        if conf.loss_type in ["bce"]
         self.clf = nn.Linear(in_features=self.bert.config.hidden_size, out_features=1)
         self.tokenizer = BertTokenizer.from_pretrained(model_dir)
         if exists(join(model_dir, "clf.bin")):

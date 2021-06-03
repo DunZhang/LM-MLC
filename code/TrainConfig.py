@@ -35,6 +35,7 @@ class TrainConfig():
         self.desc = None
         self.eval_repeat_times = None
         self.mask_token = None
+        self.loss_type = None
 
 
 

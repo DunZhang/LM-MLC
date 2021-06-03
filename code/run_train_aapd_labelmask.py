@@ -22,27 +22,37 @@ logging.basicConfig(level=logging.INFO)
 # 7，是否用同一个mask
 if __name__ == "__main__":
     conf = TrainConfig()
-    # 模型结构
+    # 预训练模型目录
     conf.pretrained_bert_dir = "../data/public_models/bert_base"
+
+    # 最大长度
     conf.max_len = 450
-    # 训练相关
+
+    # 种子
     conf.seed = 2021
+
+    # gpu id
     conf.device = "0"
+
+    # 学习率
     conf.lr = 5e-5
     conf.batch_size = 32
     conf.num_epochs = 30
+    # warmup
     conf.warmup_proportion = 0.1
     conf.num_labels = 54
-    # 输出信息
     conf.log_step = 10
     conf.save_step = 2000  # do a evaluate and save best model
-    conf.use_label_mask = True
+    conf.use_label_mask = True  #
     conf.init_from_pretrained = True
     # 前后token数量
     conf.num_pattern_begin = 1  # 0-n
     conf.num_pattern_end = 1  # 0-n
     # 模板位置
     conf.pattern_pos = "begin"  # begin or end
+
+    # 损失函数类型
+    conf.loss_type = "bce"  # bce, ce, mcc, focalloss
 
     # 是否使用mlm任务联合训练
     conf.num_mlm_steps_or_epochs = "epoch-0"  # epoch-xx 或 step-xx

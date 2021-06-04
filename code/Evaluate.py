@@ -90,7 +90,6 @@ def _pred_logits_labelmask_part(model: torch.nn.Module, data_iter, device: torch
                     y_true.append(np.array([item[1] for item in batch_data], dtype=np.int))
                 ipt = {k: v.to(device) for k, v in ipt.items()}
                 # batch_label = ipt.pop("labels")
-                ipt["task"] = "dev"
                 t_batch_logits = model(**ipt)[0].cpu().data.numpy()  # b*num_labels
                 t_batch_proba = expit(t_batch_logits)  # batch_size * len(pred_labels_list)
                 #####################################################################

@@ -169,9 +169,7 @@ def get_labelbert_input_single_sen(data, max_len, tokenizer, masked_labels_list=
     num_labels = len(data[0][1])
     num_add_tokens_per_label = 1 + num_pattern_begin + num_pattern_end
     input_ids, attention_mask, token_type_ids, all_labels, all_label_indexs, mlm_labels = [], [], [], [], [], []
-    # TODO 日后根据mask_token 修改
-    all_token_ids = list(
-        range(len(tokenizer.get_vocab()) - num_labels * 3 - (num_pattern_begin + num_pattern_end) * num_labels))
+    all_token_ids = list(range(len(tokenizer.get_vocab())))
     # 确定max_len
     total_pattern_len = num_add_tokens_per_label * num_labels
     max_len = min([max([2 + len(i[0]) + total_pattern_len for i in data]), max_len])

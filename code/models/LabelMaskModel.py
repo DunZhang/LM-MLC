@@ -80,8 +80,7 @@ class LabelMaskModel(nn.Module):
         ########################################################################################
         self.conf = conf
 
-    def forward(self, input_ids, attention_mask=None, token_type_ids=None, label_indexs=None,
-                task="train", *args, **kwargs):
+    def forward(self, input_ids, attention_mask=None, token_type_ids=None, label_indexs=None, *args, **kwargs):
         """
         @param label_indexs: shape(bsz,masked_label_idx) 每一段文本被掩掉的标签位置
         当前模型设置每一个batch内掩盖掉label数量是一样的，这样可以一个batch拼成一个tensor，好操作些
@@ -94,17 +93,7 @@ class LabelMaskModel(nn.Module):
         label_indexs = label_indexs.unsqueeze(-1).expand((*label_indexs.shape, token_embeddings.shape[2]))
         label_token_embed = torch.gather(token_embeddings, 1, label_indexs)
         encoded = self.dropout(label_token_embed)  # bsz * num_mask_label * hidden_size
-        if self.conf.loss_type in ["bce", "mcc"]:
-            logits = self.clf(encoded).squeeze(-1)  # (bsz,num_mask_label) 在sigmoid一下就是概率了
-        else:  # 当成多个二分类任务来做
-            logits = self.clf(encoded)  # bsz * num_mask_label * 2
-            if task == "train":
-                logits = logits.reshape((-1, 2))
-            else:
-                # 需要转成evaluate函数的logits，那不然无法计算相关评价指标
-                proba = torch.softmax(logits, dim=-1)  # bsz * num_mask_label * 2
-                logits = proba[:, :, 1] - proba[:, :, 0]  # 只需要相减就行，评价指标不需要概率
-
+        logits = self.clf(encoded).squeeze(-1)  # (bsz,num_mask_label) 在sigmoid一下就是概率了
         # loss2： mlm loss
         mlm_logits = self.mlm_clf(token_embeddings)  # bsz * seq_len * num_vocab
         return logits, mlm_logits.reshape((-1, mlm_logits.shape[-1]))

@@ -4,6 +4,7 @@ sys.path.append("./models")
 sys.path.append("..")
 from Train import train_model
 from TrainConfig import TrainConfig
+from line_profiler import LineProfiler
 import logging
 
 logging.basicConfig(level=logging.INFO)

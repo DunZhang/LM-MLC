@@ -104,9 +104,6 @@ def train_model(conf: TrainConfig):
     elif conf.loss_type == "mcc":
         logger.info("使用mcc损失函数")
         loss_model = multilabel_categorical_crossentropy
-    elif conf.loss_type == "ce":
-        logger.info("使用ce损失函数")
-        loss_model = torch.nn.CrossEntropyLoss()
     # 遮挡语言模型的损失模型
     mlm_loss_model = torch.nn.CrossEntropyLoss()
     # 训练多少步的mlm
@@ -137,17 +134,10 @@ def train_model(conf: TrainConfig):
         for step, ipt in enumerate(train_data_iter):
             step += 1
             ipt = {k: v.to(device) for k, v in ipt.items()}
-
-            ipt["task"] = "train"
             logits, mlm_logits = model(**ipt)
             # task-specific loss
-            if conf.loss_type == "bce":
-                # 不用做改动
-                labels = ipt["labels"].float()  # bsz * num_labels
-                loss_mlc = loss_model(logits, labels)
-            elif conf.loss_type == "ce":
-                labels = ipt["labels"].long()  # bsz * num_labels
-                loss_mlc = loss_model(logits, labels.reshape((-1,)))
+            labels = ipt["labels"].float()  # bsz * num_labels
+            loss_mlc = loss_model(logits, labels)
             # mlm loss
             loss_mlm = torch.tensor(0)
             if global_step < mlm_steps:

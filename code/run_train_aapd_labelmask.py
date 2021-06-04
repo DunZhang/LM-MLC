@@ -36,8 +36,8 @@ if __name__ == "__main__":
 
     # 学习率
     conf.lr = 5e-5
-    conf.batch_size = 32
-    conf.num_epochs = 30
+    conf.batch_size = 16
+    conf.num_epochs = 50
     # warmup
     conf.warmup_proportion = 0.1
     conf.num_labels = 54
@@ -55,9 +55,9 @@ if __name__ == "__main__":
     conf.loss_type = "bce"  # bce, ce, mcc, focalloss
 
     # 是否使用mlm任务联合训练
-    conf.num_mlm_steps_or_epochs = "epoch-0"  # epoch-xx 或 step-xx
+    conf.num_mlm_steps_or_epochs = "epoch-30"  # epoch-xx 或 step-xx, 为0就代表不预训练
     # TODO 继续预训练的这个功能暂时没做
-    conf.mlm_proba = -0.15  # 掩码概率
+    conf.mlm_proba = 0.15  # 掩码概率
 
     # token_type 策略
     conf.token_type_strategy = "diff"  # None:无策略，same:标签使用一种token_type, diff:每个标签使用不同的token_type
@@ -80,6 +80,6 @@ if __name__ == "__main__":
     conf.dev_data_path = "../data/format_data/aapd_valid.txt"
     conf.data_sep = "\t"  # text与label的sep
     # 输出路径
-    conf.out_dir = "../output/trained_models/aapd_label_mask_v1"
+    conf.out_dir = "../output/trained_models/aapd_label_mask_mlm_v1"
     conf.desc = ""
     train_model(conf)

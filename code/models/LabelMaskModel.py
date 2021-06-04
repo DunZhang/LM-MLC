@@ -7,6 +7,7 @@ import torch
 from os.path import join, exists
 from typing import Union
 import logging
+import torch.functional as F
 
 logger = logging.getLogger("dianfei")
 
@@ -26,6 +27,7 @@ class LabelMaskModel(nn.Module):
             self.clf = nn.Linear(in_features=self.bert.config.hidden_size, out_features=1)
         else:  # ce 和focal loss都出两个
             self.clf = nn.Linear(in_features=self.bert.config.hidden_size, out_features=2)
+
         self.tokenizer = BertTokenizer.from_pretrained(model_dir)
         if exists(join(model_dir, "clf.bin")):
             logger.info("加载模型目录里的clf权重:{}".format(join(model_dir, "clf.bin")))
@@ -33,7 +35,6 @@ class LabelMaskModel(nn.Module):
         else:
             logger.info("模型目录没有clf权重，随机初始化一个")
         ########################################################################################
-        # TODO 修改 word embedding 和 token type embedding
         if init_from_pretrained:  # 从公开模型权重加载，需要修改词表和模型权重
             # 修改tokenizer
             new_tokens = []
@@ -49,6 +50,9 @@ class LabelMaskModel(nn.Module):
                 new_tokens.append("[YES]")
                 new_tokens.append("[NO]")
             self.tokenizer.add_tokens(new_tokens)
+            # 用于mlm任务的fc
+            self.mlm_clf = torch.nn.Linear(in_features=self.bert.config.hidden_size,
+                                           out_features=len(self.tokenizer.get_vocab()))
             hidden_size = self.bert.config.hidden_size
             # 修改word embeddings
             ori_weight = self.bert.embeddings.word_embeddings.weight.data
@@ -76,7 +80,8 @@ class LabelMaskModel(nn.Module):
         ########################################################################################
         self.conf = conf
 
-    def forward(self, input_ids, attention_mask=None, token_type_ids=None, label_indexs=None, *args, **kwargs):
+    def forward(self, input_ids, attention_mask=None, token_type_ids=None, label_indexs=None,
+                task="train", *args, **kwargs):
         """
         @param label_indexs: shape(bsz,masked_label_idx) 每一段文本被掩掉的标签位置
         当前模型设置每一个batch内掩盖掉label数量是一样的，这样可以一个batch拼成一个tensor，好操作些
@@ -85,17 +90,24 @@ class LabelMaskModel(nn.Module):
         # token_embeddings 可以拿过来训练mlm任务
         token_embeddings, _ = self.bert(input_ids=input_ids, attention_mask=attention_mask,
                                         token_type_ids=token_type_ids)[0:2]
-        # label_token_embed = []
+        # loss1: task specified loss
         label_indexs = label_indexs.unsqueeze(-1).expand((*label_indexs.shape, token_embeddings.shape[2]))
         label_token_embed = torch.gather(token_embeddings, 1, label_indexs)
         encoded = self.dropout(label_token_embed)  # bsz * num_mask_label * hidden_size
         if self.conf.loss_type in ["bce", "mcc"]:
             logits = self.clf(encoded).squeeze(-1)  # (bsz,num_mask_label) 在sigmoid一下就是概率了
-        else:
+        else:  # 当成多个二分类任务来做
             logits = self.clf(encoded)  # bsz * num_mask_label * 2
-            # 需要转成evaluate函数的logits，那不然无法计算相关评价指标
+            if task == "train":
+                logits = logits.reshape((-1, 2))
+            else:
+                # 需要转成evaluate函数的logits，那不然无法计算相关评价指标
+                proba = torch.softmax(logits, dim=-1)  # bsz * num_mask_label * 2
+                logits = proba[:, :, 1] - proba[:, :, 0]  # 只需要相减就行，评价指标不需要概率
 
-        return logits
+        # loss2： mlm loss
+        mlm_logits = self.mlm_clf(token_embeddings)  # bsz * seq_len * num_vocab
+        return logits, mlm_logits.reshape((-1, mlm_logits.shape[-1]))
 
     def save(self, save_dir: str):
         self.bert.save_pretrained(save_dir)

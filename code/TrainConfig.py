@@ -20,7 +20,6 @@ class TrainConfig():
         self.num_pattern_begin = None
         self.num_pattern_end = None
         self.pattern_pos = None
-        self.num_mlm_steps = None
         self.mlm_proba = None
         self.token_type_strategy = None
         self.mask_order = None
@@ -36,6 +35,7 @@ class TrainConfig():
         self.eval_repeat_times = None
         self.mask_token = None
         self.loss_type = None
+        self.num_mlm_steps_or_epochs = None
 
 
 

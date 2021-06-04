@@ -73,7 +73,7 @@ def _pred_logits_labelmask_part(model: torch.nn.Module, data_iter, device: torch
                 elif data_iter.pred_strategy == "top-p" and i == num_labels:  # 初次使用全量
                     masked_labels_list = [mask_order[: i] for _ in range(len(batch_data))]
                     pred_labels_list = [mask_order[: i] for _ in range(len(batch_data))]
-                #TODO 临时测试用
+                # TODO 临时测试用
                 masked_labels_list = [list(range(num_labels)) for _ in range(len(batch_data))]
                 pred_labels_list = [list(range(num_labels)) for _ in range(len(batch_data))]
                 ipt = get_labelbert_input_single_sen(batch_data, max_len, tokenizer,
@@ -90,7 +90,8 @@ def _pred_logits_labelmask_part(model: torch.nn.Module, data_iter, device: torch
                     y_true.append(np.array([item[1] for item in batch_data], dtype=np.int))
                 ipt = {k: v.to(device) for k, v in ipt.items()}
                 # batch_label = ipt.pop("labels")
-                t_batch_logits = model(**ipt).cpu().data.numpy()  # b*num_labels
+                ipt["task"] = "dev"
+                t_batch_logits = model(**ipt)[0].cpu().data.numpy()  # b*num_labels
                 t_batch_proba = expit(t_batch_logits)  # batch_size * len(pred_labels_list)
                 #####################################################################
                 if data_iter.pred_strategy == "one-by-one":

@@ -104,10 +104,17 @@ def train_model(conf: TrainConfig):
     elif conf.loss_type == "mcc":
         logger.info("使用mcc损失函数")
         loss_model = multilabel_categorical_crossentropy
-    elif conf.loss_type == "ce损失函数":
+    elif conf.loss_type == "ce":
         logger.info("使用ce损失函数")
         loss_model = torch.nn.CrossEntropyLoss()
-
+    # 遮挡语言模型的损失模型
+    mlm_loss_model = torch.nn.CrossEntropyLoss()
+    # 训练多少步的mlm
+    epoch_steps = train_data_iter.get_steps()
+    if "epoch" in conf.num_mlm_steps_or_epochs:
+        mlm_steps = epoch_steps * int(conf.num_mlm_steps_or_epochs.replace("epoch-", ""))
+    else:
+        mlm_steps = int(conf.num_mlm_steps_or_epochs.replace("step-", ""))
     # optimizer
     logger.info("define optimizer...")
     no_decay = ["bias", "LayerNorm.weight"]
@@ -118,7 +125,7 @@ def train_model(conf: TrainConfig):
     },
         {"params": [p for n, p in paras.items() if any(nd in n for nd in no_decay)], "weight_decay": 0.0}]
     optimizer = AdamW(optimizer_grouped_parameters, lr=conf.lr, eps=1e-8)
-    total_steps = train_data_iter.get_steps() * conf.num_epochs
+    total_steps = epoch_steps * conf.num_epochs
     scheduler = get_linear_schedule_with_warmup(optimizer, num_warmup_steps=int(conf.warmup_proportion * total_steps),
                                                 num_training_steps=total_steps)
     # train
@@ -127,20 +134,25 @@ def train_model(conf: TrainConfig):
     logger.info("start train")
     accs, f1s, jaccs, hammings, avgs = [], [], [], [], []
     for epoch in range(conf.num_epochs):
-        epoch_steps = train_data_iter.get_steps()
         for step, ipt in enumerate(train_data_iter):
             step += 1
             ipt = {k: v.to(device) for k, v in ipt.items()}
-            labels = ipt["labels"].float()  # bsz * num_labels
-            logits = model(**ipt)
-            # if random.random() > 0.9:
-            #     print("logits.shape", logits.shape)
+
+            ipt["task"] = "train"
+            logits, mlm_logits = model(**ipt)
+            # task-specific loss
             if conf.loss_type == "bce":
                 # 不用做改动
-                loss = loss_model(logits, labels)
+                labels = ipt["labels"].float()  # bsz * num_labels
+                loss_mlc = loss_model(logits, labels)
             elif conf.loss_type == "ce":
-                loss = loss_model(logits.reshape((-1, 2)), labels.reshape((-1,)))
-            # loss = loss_model(logits, labels)
+                labels = ipt["labels"].long()  # bsz * num_labels
+                loss_mlc = loss_model(logits, labels.reshape((-1,)))
+            # mlm loss
+            loss_mlm = torch.tensor(0)
+            if global_step < mlm_steps:
+                loss_mlm = mlm_loss_model(mlm_logits, ipt["mlm_labels"].view(-1).long())
+            loss = loss_mlc + loss_mlm
             loss.backward()
             # 梯度裁剪
             torch.nn.utils.clip_grad_norm_(model.parameters(), 1)
@@ -151,7 +163,9 @@ def train_model(conf: TrainConfig):
             optimizer.zero_grad()
             global_step += 1
             if step % conf.log_step == 0:
-                logger.info("epoch-{}, step-{}/{}, loss:{}".format(epoch + 1, step, epoch_steps, loss.data))
+                logger.info(
+                    "epoch-{}, step-{}/{}, loss_mlc:{}, loss_mlm:{}".format(epoch + 1, step, epoch_steps, loss_mlc.data,
+                                                                            loss_mlm.data))
             if global_step % conf.save_step == 0 or global_step == 100:
                 # 做个测试
                 acc_t, f1_t, jacc_t, hamming_t = [], [], [], []
@@ -190,13 +204,13 @@ def train_model(conf: TrainConfig):
                 ipt_tokens = model.tokenizer.convert_ids_to_tokens(ipt_ids)
                 ttype_ids = ipt["token_type_ids"].cpu().numpy()[0, :].tolist()
                 attn_mask = ipt["attention_mask"].cpu().numpy()[0, :].tolist()
-                print(ipt_ids)
-                print(ipt_tokens)
-                print(ttype_ids)
-                print(attn_mask)
+                logger.info(str(ipt_ids))
+                logger.info(str(ipt_tokens))
+                logger.info(str(ttype_ids))
+                logger.info(str(attn_mask))
                 if conf.use_label_mask:
-                    print(ipt["labels"].cpu().numpy()[0, :].tolist())
-                    print(ipt["label_indexs"].cpu().numpy()[0, :].tolist())
-                    print(ipt["mlm_labels"].cpu().numpy()[0, :].tolist())
-                print(
+                    logger.info(str(ipt["labels"].cpu().numpy()[0, :].tolist()))
+                    logger.info(str(ipt["label_indexs"].cpu().numpy()[0, :].tolist()))
+                    logger.info(str(ipt["mlm_labels"].cpu().numpy()[0, :].tolist()))
+                logger.info(
                     "===================================================================================================")

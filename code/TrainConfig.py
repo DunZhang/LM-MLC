@@ -29,7 +29,7 @@ class TrainConfig():
         self.dev_data_path = None
         self.data_sep = None
         self.out_dir = None
-        self.use_label_mask = None
+        self.label_mask_type = None
         self.init_from_pretrained = None
         self.desc = None
         self.eval_repeat_times = None

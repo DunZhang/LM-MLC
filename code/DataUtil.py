@@ -98,6 +98,29 @@ class DataUtil():
             fw.writelines([i + "\n" for i in vocabs])
 
     @staticmethod
+    def resize_bert(data_paths, public_model_dir,
+                    save_dir: str = "../data/public_models/bert_base_for_gaic"):
+        """ 对于脱敏数据 重新生成bert """
+        vocabs = []
+        for file_path in data_paths:
+            with open(file_path, "r", encoding="utf8") as fr:
+                logger.info("read file:{}".format(file_path))
+                for line in fr:
+                    if len(line.strip()) < 2:
+                        continue
+                    sen = line.strip().split("\t")[0].strip()
+                    vocabs.extend(sen.split(" "))
+
+        vocabs = list(set(vocabs))
+        vocabs = ["[CLS]", "[SEP]", "[MASK]", "[PAD]", "[UNK]"] + vocabs
+        with open(join(save_dir, "vocab.txt"), "w", encoding="utf8") as fw:
+            fw.writelines([i + "\n" for i in vocabs])
+        # resize bert
+        model = BertForMaskedLM.from_pretrained(public_model_dir)
+        model.resize_token_embeddings(len(vocabs))
+        model.save_pretrained(save_dir)
+
+    @staticmethod
     def mask_ids(ids: List[int], tokenizer: BertTokenizer, all_token_ids, mlm_ratio=0.15):
         masked_ids, mask_label = [], []
         for token_id in ids:
@@ -157,7 +180,8 @@ class DataUtil():
         res_df = []
         res = []
         for target_label in range(num_labels):
-            corrs = [abs(pearsonr(i, labels_t[target_label])[0]) for i in labels_t]
+            print(len(labels_t[target_label]))
+            corrs = [abs(spearmanr(i, labels_t[target_label])[0]) for i in labels_t]
             res_df.append(corrs)
             corr = (sum(corrs) - 1) / (len(corrs) - 1)
             res.append((target_label, corr))
@@ -168,18 +192,12 @@ class DataUtil():
 
 if __name__ == "__main__":
     # DataUtil.get_label_list("../data/format_data/aapd_train.txt")
-    res = DataUtil.get_label_list_corr("../data/format_data/rcv1v2_train.txt", "zdd1.xlsx")
+    res = DataUtil.get_label_list_corr("../data/format_data/gaic_train.txt", "zdd1.xlsx")
+    # res = DataUtil.get_label_list_corr("../data/format_data/aapd_train.txt", "zdd1.xlsx")
     for i in res:
         print(i)
-    # DataUtil.build_vocab()
-    # data = DataUtil.read_data("../user_data/data/hold_out_20210422/dev.txt")
-    # c1, c2, c3 = 0, 0, 0
-    # for _, _, l1, l2 in data:
-    #     if l1 is None and l2 is None:
-    #         c1 += 1
-    #     elif l2 is None:
-    #         c2 += 1
-    #     elif l1 is not None and l2 is not None:
-    #         c3 += 1
-    # print(c1, c2, c3)
-    # print(len(data))
+    # DataUtil.resize_bert(data_paths=["../data/format_data/gaic_train.txt",
+    #                                  "../data/format_data/gaic_dev.txt",
+    #                                  "../data/format_data/gaic_test.txt"],
+    #                      public_model_dir="../data/public_models/bert_base",
+    #                      save_dir="../data/public_models/bert_base_for_gaic")

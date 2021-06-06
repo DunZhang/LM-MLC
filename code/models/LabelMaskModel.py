@@ -46,18 +46,20 @@ class LabelMaskModel(nn.Module):
                     new_tokens.append("[LABEL-{}-NO]".format(idx))
                 new_tokens.extend(["[LABEL-{}-E-{}]".format(idx, i) for i in range(conf.num_pattern_end)])
             if conf.mask_token != "diff":
-                new_tokens.append(conf.mask_token)
+                if conf.mask_token != "[MASK]":
+                    new_tokens.append(conf.mask_token)
                 new_tokens.append("[YES]")
                 new_tokens.append("[NO]")
             self.tokenizer.add_tokens(new_tokens)
+
             # 用于mlm任务的fc
-            self.mlm_clf = torch.nn.Linear(in_features=self.bert.config.hidden_size,
-                                           out_features=len(self.tokenizer.get_vocab()))
+            if conf.num_mlm_steps_or_epochs is not None:
+                self.mlm_clf = torch.nn.Linear(in_features=self.bert.config.hidden_size,
+                                               out_features=len(self.tokenizer.get_vocab()))
             hidden_size = self.bert.config.hidden_size
             # 修改word embeddings
             ori_weight = self.bert.embeddings.word_embeddings.weight.data
-            self.bert.embeddings.word_embeddings = torch.nn.Embedding(ori_weight.shape[0] + len(new_tokens),
-                                                                      hidden_size,
+            self.bert.embeddings.word_embeddings = torch.nn.Embedding(len(self.tokenizer.get_vocab()), hidden_size,
                                                                       padding_idx=self.bert.config.pad_token_id)
             self.bert.embeddings.word_embeddings.weight.data.copy_(
                 torch.cat([ori_weight, torch.randn((len(new_tokens), hidden_size))], dim=0))
@@ -95,8 +97,11 @@ class LabelMaskModel(nn.Module):
         encoded = self.dropout(label_token_embed)  # bsz * num_mask_label * hidden_size
         logits = self.clf(encoded).squeeze(-1)  # (bsz,num_mask_label) 在sigmoid一下就是概率了
         # loss2： mlm loss
-        mlm_logits = self.mlm_clf(token_embeddings)  # bsz * seq_len * num_vocab
-        return logits, mlm_logits.reshape((-1, mlm_logits.shape[-1]))
+        mlm_logits = None
+        if self.conf.num_mlm_steps_or_epochs is not None:
+            mlm_logits = self.mlm_clf(token_embeddings)  # bsz * seq_len * num_vocab
+            mlm_logits = mlm_logits.reshape((-1, mlm_logits.shape[-1]))
+        return logits, mlm_logits
 
     def save(self, save_dir: str):
         self.bert.save_pretrained(save_dir)

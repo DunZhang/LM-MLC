@@ -70,7 +70,7 @@ def train_model(conf: TrainConfig):
         for k, v in conf.__dict__.items():
             fw.write("{}\t=\t{}\n".format(k, v))
     # models
-    if conf.use_label_mask:
+    if conf.label_mask_type is not None:
         model = LabelMaskModel(conf.pretrained_bert_dir, conf=conf, init_from_pretrained=conf.init_from_pretrained)
     else:
         model = SigmoidModel(conf.pretrained_bert_dir, conf=conf)
@@ -80,7 +80,7 @@ def train_model(conf: TrainConfig):
     # train data
     train_data_iter = BERTDataIter(data_path=conf.train_data_path, tokenizer=model.tokenizer,
                                    batch_size=conf.batch_size, shuffle=True, max_len=conf.max_len,
-                                   use_label_mask=conf.use_label_mask, task="train", num_labels=conf.num_labels,
+                                   label_mask_type=conf.label_mask_type, task="train", num_labels=conf.num_labels,
                                    mask_order=conf.mask_order,
                                    num_pattern_begin=conf.num_pattern_begin, num_pattern_end=conf.num_pattern_end,
                                    wrong_label_ratio=conf.wrong_label_ratio,
@@ -90,7 +90,7 @@ def train_model(conf: TrainConfig):
     # dev data
     dev_data_iter = BERTDataIter(data_path=conf.dev_data_path, tokenizer=model.tokenizer,
                                  batch_size=conf.batch_size, shuffle=False, max_len=conf.max_len,
-                                 use_label_mask=conf.use_label_mask, task="dev", num_labels=conf.num_labels,
+                                 label_mask_type=conf.label_mask_type, task="dev", num_labels=conf.num_labels,
                                  mask_order=conf.mask_order,
                                  num_pattern_begin=conf.num_pattern_begin, num_pattern_end=conf.num_pattern_end,
                                  wrong_label_ratio=conf.wrong_label_ratio,
@@ -108,10 +108,13 @@ def train_model(conf: TrainConfig):
     mlm_loss_model = torch.nn.CrossEntropyLoss()
     # 训练多少步的mlm
     epoch_steps = train_data_iter.get_steps()
-    if "epoch" in conf.num_mlm_steps_or_epochs:
-        mlm_steps = epoch_steps * int(conf.num_mlm_steps_or_epochs.replace("epoch-", ""))
+    if conf.num_mlm_steps_or_epochs is not None:
+        if "epoch" in conf.num_mlm_steps_or_epochs:
+            mlm_steps = epoch_steps * int(conf.num_mlm_steps_or_epochs.replace("epoch-", ""))
+        else:
+            mlm_steps = int(conf.num_mlm_steps_or_epochs.replace("step-", ""))
     else:
-        mlm_steps = int(conf.num_mlm_steps_or_epochs.replace("step-", ""))
+        mlm_steps = -1
     # optimizer
     logger.info("define optimizer...")
     no_decay = ["bias", "LayerNorm.weight"]
@@ -142,6 +145,8 @@ def train_model(conf: TrainConfig):
             loss_mlm = torch.tensor(0)
             if global_step < mlm_steps:
                 loss_mlm = mlm_loss_model(mlm_logits, ipt["mlm_labels"].view(-1).long())
+            else:
+                train_data_iter.mlm_ratio = -1
             loss = loss_mlc + loss_mlm
             loss.backward()
             # 梯度裁剪
@@ -159,7 +164,7 @@ def train_model(conf: TrainConfig):
             if global_step % conf.save_step == 0 or global_step == 100:
                 # 做个测试
                 acc_t, f1_t, jacc_t, hamming_t = [], [], [], []
-                for i in range(conf.eval_repeat_times):
+                for _ in range(conf.eval_repeat_times):
                     res = evaluate(model=model, data_iter=dev_data_iter, device=device)
                     acc_t.append(res[0])
                     f1_t.append(res[1])
@@ -198,9 +203,9 @@ def train_model(conf: TrainConfig):
                 logger.info(str(ipt_tokens))
                 logger.info(str(ttype_ids))
                 logger.info(str(attn_mask))
-                if conf.use_label_mask:
+                if conf.label_mask_type is not None:
                     logger.info(str(ipt["labels"].cpu().numpy()[0, :].tolist()))
                     logger.info(str(ipt["label_indexs"].cpu().numpy()[0, :].tolist()))
-                    logger.info(str(ipt["mlm_labels"].cpu().numpy()[0, :].tolist()))
+                logger.info(str(ipt["mlm_labels"].cpu().numpy()[0, :].tolist()))
                 logger.info(
                     "===================================================================================================")

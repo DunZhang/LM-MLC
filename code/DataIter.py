@@ -13,7 +13,7 @@ class BERTDataIter():
     """ 对于bert的数据加载器 只获得area或type """
 
     def __init__(self, data_path: str, tokenizer: BertTokenizer, batch_size: int = 64, shuffle: bool = True,
-                 max_len: int = 128, use_label_mask=False, task="train", num_labels=10, mask_order="random",
+                 max_len: int = 128, label_mask_type=None, task="train", num_labels=10, mask_order="random",
                  num_pattern_begin=1, num_pattern_end=1,
                  wrong_label_ratio=0.08, token_type_strategy=None, mlm_ratio=0.15,
                  pattern_pos="end", pred_strategy="one-by-one", mask_token="[MASK]"
@@ -32,7 +32,7 @@ class BERTDataIter():
         self.mlm_ratio = mlm_ratio
         self.pattern_pos = pattern_pos
         self.num_labels = num_labels
-        self.use_label_mask = use_label_mask
+        self.label_mask_type = label_mask_type
         self.tokenizer = tokenizer
         self.all_tokens = list(tokenizer.get_vocab().keys())
         self.batch_size = batch_size
@@ -41,7 +41,9 @@ class BERTDataIter():
         self.task = task
         self.data_path = data_path
         self.all_labels = list(range(num_labels))
+        # 首次初始化
         self.reset()
+        self.ipts = 0
 
     def reset(self):
         logger.info("dataiter reset, 读取数据")
@@ -86,19 +88,20 @@ class BERTDataIter():
                 break
         if len(batch_data) < 1:
             return None
-        if self.use_label_mask:
+        if self.label_mask_type is not None:
             if self.task == "train":
-                num_mask = random.randint(1, self.num_labels)
-                if self.mask_order == "random":
-                    masked_labels_list = [random.sample(self.all_labels, num_mask) for _ in range(len(batch_data))]
+                if self.label_mask_type == "part":
+                    num_mask = random.randint(1, self.num_labels)
+                    if self.mask_order == "random":
+                        masked_labels_list = [random.sample(self.all_labels, num_mask) for _ in range(len(batch_data))]
+                        pred_labels_list = deepcopy(masked_labels_list)
+                    else:
+                        masked_labels_list = [self.mask_order[:num_mask] for _ in range(len(batch_data))]
+                        pred_labels_list = [self.mask_order[num_mask - 1:num_mask] for _ in
+                                            range(len(batch_data))]
+                elif self.label_mask_type == "full":
+                    masked_labels_list = [deepcopy(self.all_labels) for _ in range(len(batch_data))]
                     pred_labels_list = deepcopy(masked_labels_list)
-                else:
-                    masked_labels_list = [self.mask_order[:num_mask] for _ in range(len(batch_data))]
-                    pred_labels_list = [self.mask_order[num_mask - 1:num_mask] for _ in
-                                        range(len(batch_data))]
-                # TODO 临时测试用
-                masked_labels_list = [deepcopy(self.all_labels) for _ in range(len(batch_data))]
-                pred_labels_list = deepcopy(masked_labels_list)
                 return get_labelbert_input_single_sen(batch_data, self.max_len, self.tokenizer,
                                                       masked_labels_list=masked_labels_list,
                                                       pred_labels_list=pred_labels_list,
@@ -111,33 +114,38 @@ class BERTDataIter():
             else:
                 return batch_data
         else:
-            return _get_bert_input_single_sen(batch_data, self.max_len, self.tokenizer)
+            return _get_bert_input_single_sen(batch_data, self.max_len, self.tokenizer, self.mlm_ratio)
 
     def __iter__(self):
         return self
 
     def __next__(self):
-        ipts = self.get_batch_data()
-        if ipts is None:
+        if self.ipts is None:
             self.reset()
+        self.ipts = self.get_batch_data()
+        if self.ipts is None:
             raise StopIteration
         else:
-            return ipts
+            return self.ipts
 
 
-def _get_bert_input_single_sen(data, max_len, tokenizer):
+def _get_bert_input_single_sen(data, max_len, tokenizer, mlm_ratio=0.15):
     """
     data: [[ids1,label],[ids2,lable],...]
     :param data:
     :return:
     """
-    input_ids, attention_mask, token_type_ids, labels = [], [], [], []
+    input_ids, attention_mask, token_type_ids, labels, mlm_labels = [], [], [], [], []
     # 确定max_len
     max_len = min([max([2 + len(i[0]) for i in data]), max_len])
+    all_token_ids = list(range(len(tokenizer.get_vocab())))
     for ids, label in data:
         res = tokenizer.prepare_for_model(ids, pair_ids=None, max_length=max_len, add_special_tokens=True,
                                           truncation=True)
         t_input_ids = res["input_ids"]
+        t_input_ids, mlm_mask_label = DataUtil.mask_ids(t_input_ids, tokenizer, all_token_ids, mlm_ratio)
+
+        mlm_mask_label = mlm_mask_label + [-100] * (max_len - len(mlm_mask_label))
         t_token_type_ids = res["token_type_ids"]
         t_attention_mask = [1] * len(t_input_ids) + [0] * (max_len - len(t_input_ids))  # 注意力掩码
         t_token_type_ids += [0] * (max_len - len(t_input_ids))  # 补全token_type
@@ -146,9 +154,10 @@ def _get_bert_input_single_sen(data, max_len, tokenizer):
         labels.append(label)
         attention_mask.append(t_attention_mask)
         token_type_ids.append(t_token_type_ids)
+        mlm_labels.append(mlm_mask_label)
 
     return_data = {"input_ids": input_ids, "attention_mask": attention_mask, "token_type_ids": token_type_ids,
-                   "labels": labels}
+                   "labels": labels, "mlm_labels": mlm_labels}
     return_data = {k: torch.tensor(v, dtype=torch.long) for k, v in return_data.items()}
 
     return return_data

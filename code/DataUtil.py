@@ -180,7 +180,7 @@ class DataUtil():
         res_df = []
         res = []
         for target_label in range(num_labels):
-            print(len(labels_t[target_label]))
+            # print(len(labels_t[target_label]))
             corrs = [abs(spearmanr(i, labels_t[target_label])[0]) for i in labels_t]
             res_df.append(corrs)
             corr = (sum(corrs) - 1) / (len(corrs) - 1)
@@ -192,7 +192,7 @@ class DataUtil():
 
 if __name__ == "__main__":
     # DataUtil.get_label_list("../data/format_data/aapd_train.txt")
-    res = DataUtil.get_label_list_corr("../data/format_data/gaic_train.txt", "zdd1.xlsx")
+    res = DataUtil.get_label_list_corr("../data/format_data/aapd_top11_train.txt", "zdd1.xlsx")
     # res = DataUtil.get_label_list_corr("../data/format_data/aapd_train.txt", "zdd1.xlsx")
     for i in res:
         print(i)

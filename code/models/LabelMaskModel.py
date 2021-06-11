@@ -13,7 +13,8 @@ logger = logging.getLogger("dianfei")
 
 
 class LabelMaskModel(nn.Module):
-    def __init__(self, model_dir: str, conf: TrainConfig = None, init_from_pretrained: bool = True):
+    def __init__(self, model_dir: str, conf: TrainConfig = None, init_from_pretrained: bool = True,
+                 eval_or_pred: bool = False):
         super().__init__()
         if conf is None:
             conf = TrainConfig()
@@ -80,6 +81,7 @@ class LabelMaskModel(nn.Module):
             self.bert.config.type_vocab_size += num_new_token_type
             self.bert.config.vocab_size = len(self.tokenizer.get_vocab())
         ########################################################################################
+        self.eval_or_pred = eval_or_pred
         self.conf = conf
 
     def forward(self, input_ids, attention_mask=None, token_type_ids=None, label_indexs=None, *args, **kwargs):
@@ -98,7 +100,7 @@ class LabelMaskModel(nn.Module):
         logits = self.clf(encoded).squeeze(-1)  # (bsz,num_mask_label) 在sigmoid一下就是概率了
         # loss2： mlm loss
         mlm_logits = None
-        if self.conf.num_mlm_steps_or_epochs is not None:
+        if self.conf.num_mlm_steps_or_epochs is not None and not self.eval_or_pred:
             mlm_logits = self.mlm_clf(token_embeddings)  # bsz * seq_len * num_vocab
             mlm_logits = mlm_logits.reshape((-1, mlm_logits.shape[-1]))
         return logits, mlm_logits

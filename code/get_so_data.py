@@ -9,6 +9,12 @@ import regex
 logger = logging.getLogger(__name__)
 from lxml import etree
 from bs4 import BeautifulSoup
+from os.path import join
+
+import random
+import json
+
+logging.basicConfig(level=logging.INFO)
 
 
 class CleanDataSO(object):
@@ -16,11 +22,11 @@ class CleanDataSO(object):
     class to clean StackOver flow data
     """
 
-    def __init__(self, so_xml_path, tag_xml_path, clean_data_path):
+    def __init__(self, so_xml_path, tag_xml_path, save_dir):
         """
         :param so_xml_path: the path of StackOver flow data, the data is big and
                 can be downloaded from https://archive.org/download/stackexchange
-        :param clean_data_path: save clean data to text file ( one line one sentence).
+        :param save_dir: save clean data to text file ( one line one sentence).
         """
         self.__pattern_url = re.compile(
             "(https?|ftp|file)://[-A-Za-z0-9+&@#/%?=~_|!:,.;]+[-A-Za-z0-9+&@#/%=~_|]")  # URL
@@ -28,7 +34,7 @@ class CleanDataSO(object):
         self.__pattern_space = re.compile("\s+")
         self.so_xml_path = so_xml_path
         self.tag_xml_path = tag_xml_path
-        self.clean_data_path = clean_data_path
+        self.save_dir = save_dir
 
     def get_tags(self):
         context = etree.iterparse(self.tag_xml_path, encoding="utf-8")
@@ -39,7 +45,7 @@ class CleanDataSO(object):
                 tag_count.append((name, int(count)))
             elem.clear()
         tag_count.sort(key=lambda x: x[1], reverse=True)
-        tag_count = tag_count[:50]
+        tag_count = tag_count[:100]
         return [i[0] for i in tag_count]
 
     def __clean_text(self, strText):
@@ -56,17 +62,18 @@ class CleanDataSO(object):
         tags = self.get_tags()
         num_tags = len(tags)
         tag_set = set(tags)
-        tag2id = {name: id for idx, name in enumerate(tags)}
+        tag2id = {name: idx for idx, name in enumerate(tags)}
+        tag2count = {name: 0 for name in tags}
         logger.info("clean stack overflow data")
         context = etree.iterparse(self.so_xml_path, encoding="utf-8")
-        fw = codecs.open(self.clean_data_path, mode="w", encoding="utf-8")
-
         clean_data = []  # 存储title 和 answers
         c = 0
+        # 第一步遍历清洗获取数据
         for _, elem in context:  # 迭代每一个
             c += 1
-            if (c % 1000 == 0):
+            if (c % 100000 == 0):
                 logger.info("already clean record:" + str(c / 10000) + "W")
+                logger.info("num clean data:{}".format(len(clean_data)))
             title, body, typeId = elem.get("Title"), elem.get("Body"), elem.get("PostTypeId")
             post_tags = elem.get("Tags")
             elem.clear()
@@ -75,17 +82,21 @@ class CleanDataSO(object):
             if int(typeId) != 1 and int(typeId) != 2:
                 continue
             # 获取tag string
-            post_tags = [t for t in post_tags.split(" ") if len(t) > 0]
+            # print(post_tags)
+            # continue
+            post_tags = [t for t in post_tags[1:-1].split("><") if len(t) > 0]
+            # print(post_tags)
+            # continue
             post_tags = set(post_tags)
             inter_tags = post_tags.intersection(tag_set)
-            if len(inter_tags) == 0:
+            if len(inter_tags) < 4:
                 continue
             if len(post_tags) - len(inter_tags) > 2:
                 continue
-            tag_str = ["0"] * num_tags
+            label = ["0"] * num_tags
             for tag_name in list(inter_tags):
-                tag_str[tag2id[tag_name]] = "1"
-            tag_str = "".join(tag_str)
+                tag2count[tag_name] += 1
+                label[tag2id[tag_name]] = "1"
             # 清洗body
             clean_body = ""
             if body is not None:
@@ -105,15 +116,38 @@ class CleanDataSO(object):
                 continue
             text_words = text_words[:200]
             text = " ".join(text_words)
-            clean_data.append("{}\t{}\n".join(text, tag_str))
-            if len(clean_data) > 1000:  # write to local
-                fw.writelines(clean_data)
-                clean_data = []
-        if len(clean_data) > 0:
-            fw.writelines(clean_data)
-        fw.close()
+            clean_data.append([text, label])
+            if len(clean_data) >= 100000:
+                break
+        # 第二步获取前50名tag
+        tag2count = [(k, v) for k, v in tag2count.items()]
+        tag2count.sort(key=lambda x: x[1], reverse=True)
+        for k, v in tag2count:
+            print(k, v)
+        keep_tags = [i[0] for i in tag2count][:20]
+
+        for idx in range(len(clean_data)):
+            text, label = clean_data[idx]
+            label_str = "".join([label[tag2id[name]] for name in keep_tags])
+            clean_data[idx] = "{}\t{}\n".format(text, label_str)
+        # 第三步切分数据集
+        with open(join(self.save_dir, "sotag2id.json"), "w", encoding="utf8") as fw:
+            json.dump({name: idx for idx, name in enumerate(keep_tags)}, fw, ensure_ascii=False, indent=1)
+        random.shuffle(clean_data)
+        count = int(len(clean_data) * 0.1)
+        dev, test, train = clean_data[:count], clean_data[count:2 * count], clean_data[2 * count:]
+        save_dir = self.save_dir
+        with open(join(save_dir, "so_train.txt"), "w", encoding="utf8") as fw:
+            fw.writelines(train)
+        with open(join(save_dir, "so_dev.txt"), "w", encoding="utf8") as fw:
+            fw.writelines(dev)
+        with open(join(save_dir, "so_test.txt"), "w", encoding="utf8") as fw:
+            fw.writelines(test)
 
 
 if __name__ == "__main__":
-    so = CleanDataSO("", "../data/Stackoverflow/SOTags.xml", "")
-    so.get_tags()
+    # with open(r"F:\谷歌下载目录\Posts.xml", "r", encoding="utf8") as fr:
+    # for line in fr:
+    #     print(line)
+    so = CleanDataSO(r"F:\谷歌下载目录\Posts.xml", "../data/Stackoverflow/SOTags.xml", "../data/format_data")
+    so.transform()

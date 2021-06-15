@@ -7,6 +7,7 @@ class TrainConfig():
     def __init__(self):
         # 模型结构
         self.pretrained_bert_dir = "../public_pretrained_models/roberta_wwm_ext_base"
+        self.num_hidden_layers = None
         self.max_len = None
         self.seed = None
         self.device = None

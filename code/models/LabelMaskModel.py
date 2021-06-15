@@ -20,7 +20,7 @@ class LabelMaskModel(nn.Module):
             conf = TrainConfig()
             conf.load(join(model_dir, "train_conf.json"))
         # 编码器
-        self.bert = BertModel.from_pretrained(model_dir)
+        self.bert = BertModel.from_pretrained(model_dir, num_hidden_layers=conf.num_hidden_layers)
 
         # 分类器
         self.dropout = nn.Dropout(0.1)

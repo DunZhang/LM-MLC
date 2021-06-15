@@ -24,19 +24,16 @@ if __name__ == "__main__":
 
     model_dir = "../output/trained_models/aapdtop11_baseline_v1/avg_best_model"
     # acc, f1, jacc, 1-hamming_loss 0.6879795396419437 0.8477718360071301 0.7357673267326733 0.9503603813066729
-    model_dir = "../output/trained_models/aapdtop11_labelmask_v2/avg_best_model" # 考虑标签相关，不同label mask
-    # acc, f1, jacc, 1-hamming_loss 0.7084398976982097 0.8570415040794608 0.749844816883923 0.9531504301325273
-    # acc, f1, jacc, 1-hamming_loss 0.6360201511335013 0.8169611307420495 0.6905615292712067 0.9406915502633387
-    # model_dir = "../output/trained_models/aapdtop11_labelmask_v3/avg_best_model"
-    # acc, f1, jacc, 1-hamming_loss 0.7046035805626598 0.8520243640272304 0.7421972534332085 0.9519879097884213 # 考虑标签相关，相同label mask
-    # model_dir = "../output/trained_models/aapdtop11_labelmask_v4/avg_best_model"
-    # acc, f1, jacc, 1-hamming_loss 0.7046035805626598 0.8641801548205489 0.7608426270136307 0.9551267147175075 # 完型填空
+    model_dir = "../output/trained_models/so_baseline/avg_best_model" # 考虑标签相关，不同label mask
+    # acc, f1, jacc, 1-hamming_loss 0.3958 0.8194343021274525 0.6941030927835051 0.944365
+    # acc, f1, jacc, 1-hamming_loss 0.4055 0.8239885984517216 0.7006637838433359 0.94566
+
 
     conf = TrainConfig()
     conf.load(join(model_dir, "train_conf.json"))
     # conf.mask_order = DataUtil.get_label_list(conf.train_data_path,"asc")
     # conf.label_mask_type = "part"
-    conf.mask_order = [6, 1, 10, 3, 4, 5, 9, 8, 7, 2, 0]
+    # conf.mask_order = [6, 1, 10, 3, 4, 5, 9, 8, 7, 2, 0]
     conf.pred_strategy = "one-by-one"
     # device
     os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
@@ -46,7 +43,7 @@ if __name__ == "__main__":
         model = LabelMaskModel(model_dir=model_dir, conf=conf, init_from_pretrained=False, eval_or_pred=True).to(device)
     else:
         model = SigmoidModel(model_dir=model_dir, conf=conf).to(device)
-    dev_data_iter = BERTDataIter(data_path="../data/format_data/aapd_top11_test.txt", tokenizer=model.tokenizer,
+    dev_data_iter = BERTDataIter(data_path="../data/format_data/so_test.txt", tokenizer=model.tokenizer,
                                  batch_size=conf.batch_size, shuffle=False, max_len=conf.max_len,
                                  label_mask_type=conf.label_mask_type, task="dev", num_labels=conf.num_labels,
                                  mask_order=conf.mask_order,

@@ -186,13 +186,31 @@ class DataUtil():
             corr = (sum(corrs) - 1) / (len(corrs) - 1)
             res.append((target_label, corr))
         if save_path:
-            pd.DataFrame(res_df).to_excel(save_path, index=False)
+            pd.DataFrame(res_df).to_excel(save_path, index=True)
         return res
+
+    @staticmethod
+    def get_label_count(data_path: str):
+        """
+
+        :param data_path:
+        :param order:  asc or desc
+        :return:
+        """
+        with open(data_path, "r", encoding="utf8") as fr:
+            labels = [line.split("\t")[1].strip() for line in fr]
+        num_labels = len(labels[0])
+        label_count = [0] * num_labels
+        for i in labels:
+            for idx, j in enumerate(i):
+                if j == "1":
+                    label_count[idx] += 1
+
+        print(label_count)
 
 
 if __name__ == "__main__":
-    # DataUtil.get_label_list("../data/format_data/aapd_train.txt")
-    res = DataUtil.get_label_list_corr("../data/format_data/so_test.txt", "zdd1.xlsx")
+    res = DataUtil.get_label_list_corr("../data/format_data/aapd_top11_train.txt", "zdd1.xlsx")
     # res = DataUtil.get_label_list_corr("../data/format_data/aapd_train.txt", "zdd1.xlsx")
     for i in res:
         print(i)

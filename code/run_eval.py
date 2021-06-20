@@ -24,9 +24,9 @@ if __name__ == "__main__":
 
     model_dir = "../output/trained_models/aapdtop11_baseline_v1/avg_best_model"
     # acc, f1, jacc, 1-hamming_loss 0.6879795396419437 0.8477718360071301 0.7357673267326733 0.9503603813066729
-    model_dir = "../output/trained_models/so_baseline/avg_best_model" # 考虑标签相关，不同label mask
-    # acc, f1, jacc, 1-hamming_loss 0.3958 0.8194343021274525 0.6941030927835051 0.944365
-    # acc, f1, jacc, 1-hamming_loss 0.4055 0.8239885984517216 0.7006637838433359 0.94566
+    model_dir = "../output/trained_models/so_labelmask_mlm/avg_best_model" # 考虑标签相关，不同label mask
+    # acc, f1, jacc, 1-hamming_loss 0.5705 0.822293676312969 0.6982162358937022 0.9660863636363637
+    # acc, f1, jacc, 1-hamming_loss 0.5712 0.8186912337353975 0.6930374658305194 0.9652909090909091
 
 
     conf = TrainConfig()

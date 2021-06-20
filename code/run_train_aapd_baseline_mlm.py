@@ -12,7 +12,7 @@ if __name__ == "__main__":
     conf = TrainConfig()
     # 预训练模型目录
     conf.pretrained_bert_dir = "../data/public_models/bert_base"
-
+    conf.num_hidden_layers = 12
     # 最大长度
     conf.max_len = 450
 
@@ -25,10 +25,10 @@ if __name__ == "__main__":
     # 学习率
     conf.lr = 5e-5
     conf.batch_size = 16
-    conf.num_epochs = 50
+    conf.num_epochs = 25
     # warmup
     conf.warmup_proportion = 0.1
-    conf.num_labels = 54
+    conf.num_labels = 22
     conf.log_step = 10
     conf.save_step = 1000  # do a evaluate and save best model
     conf.label_mask_type = None  # full:全掩盖全预测，纯粹的完型填空 part掩盖部分，考虑已经预测的标签； None：不用lablel-mask
@@ -43,7 +43,7 @@ if __name__ == "__main__":
     conf.loss_type = "bce"  # bce, ce, mcc, focalloss
 
     # 是否使用mlm任务联合训练
-    conf.num_mlm_steps_or_epochs = "epoch-30"  # epoch-xx 或 step-xx, 为0就代表不预训练
+    conf.num_mlm_steps_or_epochs = "epoch-15"  # epoch-xx 或 step-xx, 为0就代表不预训练
     conf.mlm_proba = 0.15  # 掩码概率
 
     # token_type 策略
@@ -63,9 +63,9 @@ if __name__ == "__main__":
     conf.wrong_label_ratio = -0.01
 
     # 相关路径
-    conf.train_data_path = "../data/format_data/aapd_train.txt"
-    conf.dev_data_path = "../data/format_data/aapd_dev.txt"
+    conf.train_data_path = "../data/format_data/so_train.txt"
+    conf.dev_data_path = "../data/format_data/so_dev.txt"
     # 输出路径
-    conf.out_dir = "../output/trained_models/aapd_baseline_mlm"
+    conf.out_dir = "../output/trained_models/so_baseline_mlm"
     conf.desc = ""
     train_model(conf)

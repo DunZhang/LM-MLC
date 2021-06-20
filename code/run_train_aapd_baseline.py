@@ -12,9 +12,9 @@ if __name__ == "__main__":
     conf = TrainConfig()
     # 预训练模型目录
     conf.pretrained_bert_dir = "../data/public_models/bert_base"
-
+    conf.num_hidden_layers = 12
     # 最大长度
-    conf.max_len = 450
+    conf.max_len = 500
 
     # 种子
     conf.seed = 2021
@@ -25,7 +25,7 @@ if __name__ == "__main__":
     # 学习率
     conf.lr = 5e-5
     conf.batch_size = 16
-    conf.num_epochs = 40
+    conf.num_epochs = 12
     # warmup
     conf.warmup_proportion = 0.1
     conf.num_labels = 54
@@ -64,7 +64,7 @@ if __name__ == "__main__":
 
     # 相关路径
     conf.train_data_path = "../data/format_data/aapd_train.txt"
-    conf.dev_data_path = "../data/format_data/aapd_valid.txt"
+    conf.dev_data_path = "../data/format_data/aapd_dev.txt"
     # 输出路径
     conf.out_dir = "../output/trained_models/aapd_baseline"
     conf.desc = ""

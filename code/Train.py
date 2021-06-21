@@ -86,7 +86,7 @@ def train_model(conf: TrainConfig):
                                    wrong_label_ratio=conf.wrong_label_ratio,
                                    token_type_strategy=conf.token_type_strategy, mlm_ratio=conf.mlm_proba,
                                    pattern_pos=conf.pattern_pos, pred_strategy=conf.pred_strategy,
-                                   mask_token=conf.mask_token)
+                                   mask_token=conf.mask_token, use_pattern_embed=conf.use_pattern_embed)
     # dev data
     dev_data_iter = BERTDataIter(data_path=conf.dev_data_path, tokenizer=model.tokenizer,
                                  batch_size=conf.batch_size, shuffle=False, max_len=conf.max_len,
@@ -96,7 +96,7 @@ def train_model(conf: TrainConfig):
                                  wrong_label_ratio=conf.wrong_label_ratio,
                                  token_type_strategy=conf.token_type_strategy, mlm_ratio=conf.mlm_proba,
                                  pattern_pos=conf.pattern_pos, pred_strategy=conf.pred_strategy,
-                                 mask_token=conf.mask_token)
+                                 mask_token=conf.mask_token, use_pattern_embed=conf.use_pattern_embed)
     # loss models
     if conf.loss_type == "bce":
         logger.info("使用bce损失函数")

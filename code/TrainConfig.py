@@ -37,6 +37,7 @@ class TrainConfig():
         self.mask_token = None
         self.loss_type = None
         self.num_mlm_steps_or_epochs = None
+        self.use_pattern_embed = None
 
 
 

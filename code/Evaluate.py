@@ -77,7 +77,8 @@ def _pred_logits_labelmask_full(model: torch.nn.Module, data_iter, device: torch
                                                      wrong_label_ratio=-1,
                                                      token_type_strategy=data_iter.token_type_strategy,
                                                      mlm_ratio=-1,
-                                                     pattern_pos=data_iter.pattern_pos)
+                                                     pattern_pos=data_iter.pattern_pos,
+                                                     use_pattern_embed=data_iter.use_pattern_embed)
 
                 if i == num_labels:  # 首次预测存储真实标签
                     y_true.append(np.array([item[1] for item in batch_data], dtype=np.int))
@@ -182,7 +183,8 @@ def _pred_logits_labelmask_part(model: torch.nn.Module, data_iter, device: torch
     y_true = np.vstack(y_true)
     logits = np.vstack(logits)
     if save_path is not None:
-        pd.DataFrame(data=logits, columns=["label{}".format(i) for i in range(num_labels)]).to_excel(save_path, index=False)
+        pd.DataFrame(data=logits, columns=["label{}".format(i) for i in range(num_labels)]).to_excel(save_path,
+                                                                                                     index=False)
     model.train()
     return logits, y_true
 

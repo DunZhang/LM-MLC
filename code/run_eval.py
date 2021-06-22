@@ -26,6 +26,10 @@ if __name__ == "__main__":
     # acc, f1, jacc, 1-hamming_loss 0.418 0.7315673289183223 0.5767490428123913 0.9774814814814815
     model_dir = "../output/trained_models/aapd_labelmask/avg_best_model"
     # acc, f1, jacc, 1-hamming_loss 0.398 0.7225108225108224 0.5655709928837682 0.9762592592592593
+    model_dir = "../output/trained_models/aapd_baseline_mlm/avg_best_model"
+    # acc, f1, jacc, 1-hamming_loss 0.423 0.7462946817785526 0.5952712100139083 0.9784444444444444
+    model_dir = "../output/trained_models/aapd_labelmask_mlm/avg_best_model"
+    # acc, f1, jacc, 1-hamming_loss 0.391 0.7254901960784313 0.5692307692307692 0.9766666666666667
 
     conf = TrainConfig()
     conf.load(join(model_dir, "train_conf.json"))
@@ -49,7 +53,7 @@ if __name__ == "__main__":
                                  wrong_label_ratio=-1,
                                  token_type_strategy=conf.token_type_strategy, mlm_ratio=-1,
                                  pattern_pos=conf.pattern_pos, pred_strategy=conf.pred_strategy,
-                                 mask_token=conf.mask_token, use_pattern_embed=conf.use_pattern_embed,
+                                 mask_token=conf.mask_token,
                                  )
     acc, f1, jacc, hamming_score = evaluate(model=model, data_iter=dev_data_iter, device=device)
     print("acc, f1, jacc, 1-hamming_loss", acc, f1, jacc, hamming_score)

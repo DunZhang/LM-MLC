@@ -24,7 +24,7 @@ if __name__ == "__main__":
     conf = TrainConfig()
     # 预训练模型目录
     conf.pretrained_bert_dir = "../data/public_models/bert_base_for_gaic"
-
+    conf.num_hidden_layers = 12
     # 最大长度
     conf.max_len = 200
 
@@ -43,7 +43,7 @@ if __name__ == "__main__":
     conf.num_labels = 17
     conf.log_step = 10
     conf.save_step = 1000  # do a evaluate and save best model
-    conf.label_mask_type = "full"  # full:全掩盖全预测，纯粹的完型填空 part掩盖部分，考虑已经预测的标签； None：不用lablel-mask
+    conf.label_mask_type = "part"  # full:全掩盖全预测，纯粹的完型填空 part掩盖部分，考虑已经预测的标签； None：不用lablel-mask
     conf.init_from_pretrained = True
     # 前后token数量
     conf.num_pattern_begin = 1  # 0-n
@@ -67,7 +67,7 @@ if __name__ == "__main__":
     conf.mask_order = "random"
     conf.mask_token = "[MASK]"  # mask_token or diff, diff 就是每个标签一个mask
     # 预测时标签的顺序
-    conf.pred_strategy = "one-by-one"  # one-by-one or top-p
+    conf.pred_strategy = "top-p"  # one-by-one or top-p
     # seq2seq: 预测时只知道那些标签是1，不只到哪些标签是0，哪些标签待预测，训练速度慢
     # unilm: 预测时知道哪些标签是1，哪些标签是0，不知道哪些标签待预测，可以并行训练
     # LableMask：预测时知道哪些标签是1，哪些标签是0，哪些标签待预测，可以并行训练
@@ -78,6 +78,6 @@ if __name__ == "__main__":
     conf.train_data_path = "../data/format_data/gaic_train.txt"
     conf.dev_data_path = "../data/format_data/gaic_dev.txt"
     # 输出路径
-    conf.out_dir = "../output/trained_models/gaic_labelmask_mlm"
+    conf.out_dir = "../output/trained_models/gaic_labelmask_mlm_part"
     conf.desc = ""
     train_model(conf)

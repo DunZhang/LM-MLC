@@ -16,8 +16,7 @@ class BERTDataIter():
                  max_len: int = 128, label_mask_type=None, task="train", num_labels=10, mask_order="random",
                  num_pattern_begin=1, num_pattern_end=1,
                  wrong_label_ratio=0.08, token_type_strategy=None, mlm_ratio=0.15,
-                 pattern_pos="end", pred_strategy="one-by-one", mask_token="[MASK]", use_pattern_embed=False,
-                 ):
+                 pattern_pos="end", pred_strategy="one-by-one", mask_token="[MASK]"):
         """
         labe2id不为空代表使用完形填空模型
         """
@@ -40,7 +39,6 @@ class BERTDataIter():
         self.max_len = max_len
         self.task = task
         self.data_path = data_path
-        self.use_pattern_embed = use_pattern_embed
         self.all_labels = list(range(num_labels))
         # 首次初始化
         self.reset()
@@ -111,8 +109,7 @@ class BERTDataIter():
                                                       wrong_label_ratio=self.wrong_label_ratio,
                                                       token_type_strategy=self.token_type_strategy,
                                                       mlm_ratio=self.mlm_ratio,
-                                                      pattern_pos=self.pattern_pos, mask_token=self.mask_token,
-                                                      use_pattern_embed=self.use_pattern_embed)
+                                                      pattern_pos=self.pattern_pos, mask_token=self.mask_token)
             else:
                 return batch_data
         else:
@@ -168,7 +165,7 @@ def _get_bert_input_single_sen(data, max_len, tokenizer, mlm_ratio=0.15):
 def get_labelbert_input_single_sen(data, max_len, tokenizer, masked_labels_list=None, pred_labels_list=None,
                                    num_pattern_begin=1, num_pattern_end=1,
                                    wrong_label_ratio=0.08, token_type_strategy=None, mlm_ratio=0.15, pattern_pos="end",
-                                   mask_token="[MASK]", use_pattern_embed=False):
+                                   mask_token="[MASK]"):
     """
     模板式bert
     :param data: [[ids1,label],[ids2,lable],...]
@@ -229,13 +226,6 @@ def get_labelbert_input_single_sen(data, max_len, tokenizer, masked_labels_list=
                 raise
         # 合并 text 、mlm和label信息
         label_input_ids = tokenizer.convert_tokens_to_ids(label_input_ids)
-        if use_pattern_embed:  # 把pattern加起来作为最终的mask embedding
-            new_ipt_label_indexs = []
-            for t_idx in ipt_label_indexs:
-                new_ipt_label_indexs.extend([t_idx - idx for idx in range(num_pattern_begin, 0, -1)])
-                new_ipt_label_indexs.append(t_idx)
-                new_ipt_label_indexs.extend([t_idx + idx for idx in range(1, num_pattern_end + 1)])
-            ipt_label_indexs = new_ipt_label_indexs
         if pattern_pos == "end":
             ipt_label_indexs = [i + len(text_input_ids) for i in ipt_label_indexs]
             text_input_ids.extend(label_input_ids)

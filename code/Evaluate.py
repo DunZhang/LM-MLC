@@ -77,8 +77,7 @@ def _pred_logits_labelmask_full(model: torch.nn.Module, data_iter, device: torch
                                                      wrong_label_ratio=-1,
                                                      token_type_strategy=data_iter.token_type_strategy,
                                                      mlm_ratio=-1,
-                                                     pattern_pos=data_iter.pattern_pos,
-                                                     use_pattern_embed=data_iter.use_pattern_embed)
+                                                     pattern_pos=data_iter.pattern_pos)
 
                 if i == num_labels:  # 首次预测存储真实标签
                     y_true.append(np.array([item[1] for item in batch_data], dtype=np.int))

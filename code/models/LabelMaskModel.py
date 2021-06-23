@@ -82,10 +82,6 @@ class LabelMaskModel(nn.Module):
             self.bert.config.vocab_size = len(self.tokenizer.get_vocab())
         ########################################################################################
         self.eval_or_pred = eval_or_pred
-        if hasattr(conf, "use_pattern_embed") and conf.use_pattern_embed:
-            self.num_token = conf.num_pattern_begin + conf.num_pattern_end + 1
-        else:
-            self.num_token = 1
         self.conf = conf
 
     def forward(self, input_ids, attention_mask=None, token_type_ids=None, label_indexs=None, *args, **kwargs):
@@ -100,14 +96,6 @@ class LabelMaskModel(nn.Module):
         # loss1: task specified loss
         label_indexs = label_indexs.unsqueeze(-1).expand((*label_indexs.shape, token_embeddings.shape[2]))
         label_token_embed = torch.gather(token_embeddings, 1, label_indexs)  # bsz * num_mask_label * hidden_size
-        if self.num_token > 1:
-            label_token_embed = torch.unsqueeze(label_token_embed, 2)  # bsz * num_mask_label * 1 * hidden_size
-            ori_shape = list(label_token_embed.shape)
-            new_shape = [ori_shape[0], ori_shape[1] // self.num_token, self.num_token, ori_shape[3]]
-            label_token_embed = label_token_embed.reshape(*new_shape)
-            label_token_embed = label_token_embed.mean(dim=2, keepdim=False)
-        # torch.reshape(label_token_embed, shape=)
-
         encoded = self.dropout(label_token_embed)  # bsz * num_mask_label * hidden_size
         logits = self.clf(encoded).squeeze(-1)  # (bsz,num_mask_label) 在sigmoid一下就是概率了
         # loss2： mlm loss

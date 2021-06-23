@@ -33,7 +33,6 @@ if __name__ == "__main__":
     conf.save_step = 1000  # do a evaluate and save best model
     conf.label_mask_type = "full"  # full:全掩盖全预测，纯粹的完型填空 part掩盖部分，考虑已经预测的标签； None：不用lablel-mask
     conf.init_from_pretrained = True
-    conf.use_pattern_embed = True
     # 前后token数量
     conf.num_pattern_begin = 1  # 0-n
     conf.num_pattern_end = 1  # 0-n

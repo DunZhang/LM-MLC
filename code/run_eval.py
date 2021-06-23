@@ -8,7 +8,7 @@ from DataUtil import DataUtil
 import os
 import torch
 import random
-
+from transformers import BertForMaskedLM
 if __name__ == "__main__":
     # model_dir = "../output/trained_models/gaic_baseline/avg_best_model"
     # # acc, f1, jacc, 1-hamming_loss 0.8946666666666667 0.925717213114754 0.8617072007629948 0.9886274509803922

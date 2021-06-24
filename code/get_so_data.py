@@ -45,12 +45,12 @@ class CleanDataSO(object):
                 tag_count.append((name, int(count)))
             elem.clear()
         tag_count.sort(key=lambda x: x[1], reverse=True)
-        tag_count = tag_count[:200]
-        return ["javascript", "jquery", "html", "css", "ajax", "c#",
-                "sql", "database", "sql-server", "sql-server-2008", "tsql",
-                "java", "android", "spring", "hibernate", "eclipse", "jsp", "spring-mvc",
-                "python", "php", "c++", "mysql"]
-        # return [i[0] for i in tag_count]
+        tag_count = tag_count[:150]
+        # return ["javascript", "jquery", "html", "css", "ajax", "c#",
+        #         "sql", "database", "sql-server", "sql-server-2008", "tsql",
+        #         "java", "android", "spring", "hibernate", "eclipse", "jsp", "spring-mvc",
+        #         "python", "php", "c++", "mysql"]
+        return [i[0] for i in tag_count]
 
     def __clean_text(self, strText):
         strText = strText.lower()
@@ -95,16 +95,16 @@ class CleanDataSO(object):
             inter_tags = post_tags.intersection(tag_set)
             if len(inter_tags) < 2:
                 continue
-            # if len(post_tags) - len(inter_tags) > 3:
-            #     continue
+            if len(post_tags) - len(inter_tags) > 3:
+                continue
             label = ["0"] * num_tags
             for tag_name in list(inter_tags):
                 tag2count[tag_name] += 1
                 label[tag2id[tag_name]] = "1"
-            if max(tag2count.values()) - min(tag2count.values()) > 8000:
-                for tag_name in list(inter_tags):
-                    tag2count[tag_name] -= 1
-                continue
+            # if max(tag2count.values()) - min(tag2count.values()) > 8000:
+            #     for tag_name in list(inter_tags):
+            #         tag2count[tag_name] -= 1
+            #     continue
             # 清洗body
             clean_body = ""
             if body is not None:
@@ -131,7 +131,7 @@ class CleanDataSO(object):
         tag2count.sort(key=lambda x: x[1], reverse=True)
         for k, v in tag2count:
             print(k, v)
-        keep_tags = [i[0] for i in tag2count]
+        keep_tags = [i[0] for i in tag2count][0:50]
 
         for idx in range(len(clean_data)):
             text, label = clean_data[idx]
